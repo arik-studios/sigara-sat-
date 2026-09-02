@@ -415,10 +415,71 @@ function deduplicateExistingDealers() {
   });
 
   dealersData = cleanDealers;
+  dealersData.forEach(d => syncDealerDebtsWithTotalDebt(d));
   localStorage.setItem(STORAGE_KEY_DEALERS, JSON.stringify(dealersData));
 }
 
+/**
+ * Bayinin toplam borcu (totalDebt) ile geçmiş borç/tahsilat satırlarını (debts ve sales) birebir eşitler
+ */
+function syncDealerDebtsWithTotalDebt(dealer) {
+  if (!dealer) return;
+  const currentTotalDebt = Math.max(0, dealer.totalDebt || 0);
+
+  // 1. Debts Listesini Senkronize Et
+  if (Array.isArray(dealer.debts) && dealer.debts.length > 0) {
+    let remainingPool = currentTotalDebt;
+
+    for (let i = 0; i < dealer.debts.length; i++) {
+      const d = dealer.debts[i];
+      const maxAmt = d.amount || 0;
+      if (remainingPool <= 0) {
+        d.remaining = 0;
+        d.status = "Ödendi (Kapatıldı)";
+      } else if (remainingPool >= maxAmt) {
+        d.remaining = maxAmt;
+        d.status = "Ödeme Bekleniyor";
+        remainingPool -= maxAmt;
+      } else {
+        d.remaining = remainingPool;
+        d.status = "Kısmi Ödendi";
+        remainingPool = 0;
+      }
+    }
+  }
+
+  // 2. Sales Listesini Senkronize Et
+  if (Array.isArray(dealer.sales) && dealer.sales.length > 0) {
+    let remainingSalesPool = currentTotalDebt;
+    for (let i = 0; i < dealer.sales.length; i++) {
+      const s = dealer.sales[i];
+      const origTotal = s.total || s.totalAmount || 0;
+      if (remainingSalesPool <= 0) {
+        s.debt = 0;
+        s.remainingDebt = 0;
+        s.paid = origTotal;
+        s.paidAmount = origTotal;
+      } else if (remainingSalesPool >= origTotal) {
+        s.debt = origTotal;
+        s.remainingDebt = origTotal;
+        s.paid = 0;
+        s.paidAmount = 0;
+        remainingSalesPool -= origTotal;
+      } else {
+        s.debt = remainingSalesPool;
+        s.remainingDebt = remainingSalesPool;
+        s.paid = Math.max(0, origTotal - remainingSalesPool);
+        s.paidAmount = s.paid;
+        remainingSalesPool = 0;
+      }
+    }
+  }
+}
+
 function saveDealersToStorage() {
+  if (Array.isArray(dealersData)) {
+    dealersData.forEach(d => syncDealerDebtsWithTotalDebt(d));
+  }
   calculateDailyMetrics();
   localStorage.setItem(STORAGE_KEY_DEALERS, JSON.stringify(dealersData));
   localStorage.setItem(STORAGE_KEY_DAILY_SALES, JSON.stringify(dailySalesData));
@@ -6805,7 +6866,26 @@ function openPayReceivableModal(type, id) {
       const d = dealersData.find(x => x.id === id);
       if (d) {
         d.totalDebt = Math.max(0, (d.totalDebt || 0) - payAmt);
+        syncDealerDebtsWithTotalDebt(d);
+        if (!d.payments) d.payments = [];
+        d.payments.unshift({
+          id: "pay-" + Date.now(),
+          date: dateStr,
+          amount: payAmt,
+          desc: `Alacaklar Sayfasından Borç Tahsilatı`,
+          remainingTotalDebt: d.totalDebt
+        });
         saveDealersToStorage();
+
+        if (currentActiveDealer && currentActiveDealer.id === d.id) {
+          renderDealerDebtsList(d);
+          renderDealerSalesList(d);
+          const debtBadge = document.getElementById('detail-dealer-debt-badge');
+          if (debtBadge) {
+            debtBadge.textContent = d.totalDebt > 0 ? `₺ ${d.totalDebt.toLocaleString('tr-TR')} Borç` : "₺ 0 Borçsuz";
+            debtBadge.className = d.totalDebt > 0 ? "dealer-debt-badge-lg text-rose" : "dealer-debt-badge-lg debt-zero";
+          }
+        }
       }
     } else {
       const idx = customerReceivablesData.findIndex(x => x.id === id);
