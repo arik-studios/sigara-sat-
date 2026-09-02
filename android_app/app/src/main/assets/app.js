@@ -7909,11 +7909,40 @@ function startSystemRestoreAnimationFlow(payload) {
 
   }, 1300);
 }
-window.openBackupRestoreModal = openBackupRestoreModal;
+window.resetTestDataForRestoreDemo = function() {
+  const confirmAction = confirm("DİKKAT: Test amacıyla satış geçmişleri, bayi borçları ve depo stokları sıfırlanacaktır (Sigara kataloğu, fiyat listesi ve fabrika borçları korunacaktır).\n\nDevam etmek istiyor musunuz?");
+  if (!confirmAction) return;
 
+  // 1. Sıfırla: Bayi satışları ve borçları
+  (dealersData || []).forEach(d => {
+    d.sales = [];
+    d.totalDebt = 0;
+    d.balance = 0;
+  });
+  localStorage.setItem(STORAGE_KEY_DEALERS, JSON.stringify(dealersData));
 
+  // 2. Sıfırla: Depo Stokları
+  inventoryStock = {};
+  localStorage.setItem(STORAGE_KEY_INVENTORY, JSON.stringify(inventoryStock));
+  localStorage.setItem('toptan_inventory_stock_v1', JSON.stringify(inventoryStock));
 
+  // 3. Sıfırla: Gün sonu geçmişi
+  dailyHistoryStore = {};
+  localStorage.setItem(STORAGE_KEY_DAILY_HISTORY, JSON.stringify(dailyHistoryStore));
 
+  // 4. Arayüzleri Yeniden Çiz
+  saveDealersToStorage();
+  renderHomeStockTable();
+  renderStockPieChart();
+  renderDealersTable();
+  renderOrdersGrid();
+  renderDebtLists();
+  updateDailySalesReports();
+  renderBackupPageData();
+  if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
+  if (typeof renderTopSellingCigarettesList === 'function') renderTopSellingCigarettesList();
 
-
-
+  if (typeof showToast === 'function') {
+    showToast("Satışlar ve depo stokları sıfırlandı! Şimdi indirdiğiniz yedeği seçip geri yükleyebilirsiniz.");
+  }
+};
