@@ -148,6 +148,8 @@ function initDrawer() {
    3. SAYFA GEÇİŞLERİ & MENÜ NAVİGASYONU
    ========================================================================== */
 function switchToPage(pageId) {
+  if (!pageId) return;
+
   const pages = document.querySelectorAll('.page-content');
   const drawerItems = document.querySelectorAll('.drawer-item');
 
@@ -193,8 +195,9 @@ function initNavigation() {
 
   drawerItems.forEach(item => {
     item.addEventListener('click', (e) => {
-      e.preventDefault();
       const pageId = item.getAttribute('data-page');
+      if (!pageId) return; // Do not switch page for modal triggers
+      e.preventDefault();
       switchToPage(pageId);
     });
   });
@@ -7542,6 +7545,11 @@ function setupBackupRestoreModule() {
 }
 
 function openBackupRestoreModal() {
+  const panel = document.getElementById('drawer-panel');
+  const backdrop = document.getElementById('drawer-backdrop');
+  if (panel) panel.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+
   const modal = document.getElementById('modal-data-backup-restore');
   if (!modal) return;
 
@@ -7829,6 +7837,8 @@ function startSystemRestoreAnimationFlow(payload) {
 
   }, 1300);
 }
+window.openBackupRestoreModal = openBackupRestoreModal;
+
 
 
 
