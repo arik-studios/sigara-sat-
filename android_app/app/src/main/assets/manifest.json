@@ -1,0 +1,9 @@
+{
+  "name": "Toptancı Satış Sistemi",
+  "short_name": "Satış Sistemi",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#060910",
+  "theme_color": "#0f172a"
+}

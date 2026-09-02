@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Android Build & Cache
+.gradle/
+**/android_app/.gradle/
+**/android_app/.kotlin/
+**/android_app/build/
+**/android_app/app/build/
+**/android_app/local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Android Tools & Binaries
+platform-tools/
+
+# Logs & Environment
+*.log
+.env
