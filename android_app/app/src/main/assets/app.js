@@ -2149,16 +2149,6 @@ function bindCigaretteSteppers() {
   document.querySelectorAll('.btn-packet-plus').forEach(btn => {
     btn.onclick = () => {
       const id = btn.getAttribute('data-id');
-      const stockCartons = inventoryStock[id] !== undefined ? inventoryStock[id] : 0;
-      const stockPackets = Math.round(stockCartons * 10);
-      const currentCartPackets = ((currentCart[id]?.cartonQty || 0) * 10) + (currentCart[id]?.packetQty || 0);
-
-      if (stockCartons <= 0 || (currentCartPackets + 1) > stockPackets) {
-        const cig = CIGARETTES_DB.find(c => c.id === id);
-        showOutOfStockAlertModal(cig ? cig.name : '', stockCartons);
-        return;
-      }
-
       if (!currentCart[id]) currentCart[id] = { packetQty: 0, cartonQty: 0 };
       currentCart[id].packetQty++;
       updateRowQty(id);
@@ -2178,16 +2168,6 @@ function bindCigaretteSteppers() {
   document.querySelectorAll('.btn-carton-plus').forEach(btn => {
     btn.onclick = () => {
       const id = btn.getAttribute('data-id');
-      const stockCartons = inventoryStock[id] !== undefined ? inventoryStock[id] : 0;
-      const stockPackets = Math.round(stockCartons * 10);
-      const currentCartPackets = ((currentCart[id]?.cartonQty || 0) * 10) + (currentCart[id]?.packetQty || 0);
-
-      if (stockCartons <= 0 || (currentCartPackets + 10) > stockPackets) {
-        const cig = CIGARETTES_DB.find(c => c.id === id);
-        showOutOfStockAlertModal(cig ? cig.name : '', stockCartons);
-        return;
-      }
-
       if (!currentCart[id]) currentCart[id] = { packetQty: 0, cartonQty: 0 };
       currentCart[id].cartonQty++;
       updateRowQty(id);
@@ -2207,18 +2187,7 @@ function bindCigaretteSteppers() {
   document.querySelectorAll('.input-packet-qty').forEach(inp => {
     inp.onchange = () => {
       const id = inp.getAttribute('data-id');
-      const stockCartons = inventoryStock[id] !== undefined ? inventoryStock[id] : 0;
-      const stockPackets = Math.round(stockCartons * 10);
       const val = Math.max(0, parseInt(inp.value) || 0);
-      const otherPackets = (currentCart[id]?.cartonQty || 0) * 10;
-
-      if (stockCartons <= 0 || (otherPackets + val) > stockPackets) {
-        const cig = CIGARETTES_DB.find(c => c.id === id);
-        showOutOfStockAlertModal(cig ? cig.name : '', stockCartons);
-        inp.value = currentCart[id]?.packetQty || 0;
-        return;
-      }
-
       if (!currentCart[id]) currentCart[id] = { packetQty: 0, cartonQty: 0 };
       currentCart[id].packetQty = val;
       updateRowQty(id);
@@ -2228,18 +2197,7 @@ function bindCigaretteSteppers() {
   document.querySelectorAll('.input-carton-qty').forEach(inp => {
     inp.onchange = () => {
       const id = inp.getAttribute('data-id');
-      const stockCartons = inventoryStock[id] !== undefined ? inventoryStock[id] : 0;
-      const stockPackets = Math.round(stockCartons * 10);
       const val = Math.max(0, parseInt(inp.value) || 0);
-      const otherPackets = (currentCart[id]?.packetQty || 0);
-
-      if (stockCartons <= 0 || ((val * 10) + otherPackets) > stockPackets) {
-        const cig = CIGARETTES_DB.find(c => c.id === id);
-        showOutOfStockAlertModal(cig ? cig.name : '', stockCartons);
-        inp.value = currentCart[id]?.cartonQty || 0;
-        return;
-      }
-
       if (!currentCart[id]) currentCart[id] = { packetQty: 0, cartonQty: 0 };
       currentCart[id].cartonQty = val;
       updateRowQty(id);
@@ -2647,7 +2605,7 @@ function finalizeSaleTransaction(paidAmount) {
       cartonsToDeduct = itm.qty / 10;
     }
     const currentStock = inventoryStock[cigId] || 0;
-    inventoryStock[cigId] = Math.max(0, Math.round((currentStock - cartonsToDeduct) * 100) / 100);
+    inventoryStock[cigId] = Math.round((currentStock - cartonsToDeduct) * 100) / 100;
   });
   saveInventoryToStorage();
   renderHomeStockTable();
@@ -4218,14 +4176,54 @@ function openPriceIncreaseModal() {
    15.5. STOK MİKTARI FORMATLAMA YARDIMCISI (KARTON + AÇIK PAKET / ADET)
    ========================================================================== */
 function formatStockQuantity(totalCartonsFloat) {
-  if (totalCartonsFloat === undefined || totalCartonsFloat === null || totalCartonsFloat <= 0) {
+  if (totalCartonsFloat === undefined || totalCartonsFloat === null) {
     return {
       cartons: 0,
       packets: 0,
       totalPackets: 0,
       text: "0 Karton",
       fullText: "0 Karton (0 Paket)",
-      isZero: true
+      isZero: true,
+      isNegative: false
+    };
+  }
+
+  // Eksi Stok Durumu (Depoda Olmayıp Satılan Miktar)
+  if (totalCartonsFloat < 0) {
+    const absFloat = Math.abs(totalCartonsFloat);
+    const absPackets = Math.round(absFloat * 10);
+    const fullCartons = Math.floor(absPackets / 10);
+    const remainingPackets = absPackets % 10;
+
+    let text = "";
+    if (fullCartons > 0 && remainingPackets > 0) {
+      text = `-${fullCartons} Karton - ${remainingPackets} Adet`;
+    } else if (fullCartons > 0) {
+      text = `-${fullCartons} Karton`;
+    } else {
+      text = `-${remainingPackets} Adet`;
+    }
+
+    return {
+      cartons: -fullCartons,
+      packets: -remainingPackets,
+      totalPackets: -absPackets,
+      text: `${text} (Eksi Stok)`,
+      fullText: `${text} (${-absPackets} Paket Açık)`,
+      isZero: false,
+      isNegative: true
+    };
+  }
+
+  if (totalCartonsFloat === 0) {
+    return {
+      cartons: 0,
+      packets: 0,
+      totalPackets: 0,
+      text: "0 Karton",
+      fullText: "0 Karton (0 Paket)",
+      isZero: true,
+      isNegative: false
     };
   }
 
@@ -4251,7 +4249,8 @@ function formatStockQuantity(totalCartonsFloat) {
     totalPackets: totalPackets,
     text: text,
     fullText: fullText,
-    isZero: false
+    isZero: false,
+    isNegative: false
   };
 }
 
