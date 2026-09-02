@@ -156,3 +156,35 @@ ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow public all for support_messages" ON public.support_messages;
 CREATE POLICY "Allow public all for support_messages" ON public.support_messages FOR ALL USING (true) WITH CHECK (true);
 
+-- 10. TOPTANCILAR & CİHAZ KİLİTLİ LİSANSLAR TABLOSU (MULTI-TENANT & KAÇAK KORUMA)
+CREATE TABLE IF NOT EXISTS public.tenants (
+    tenant_id TEXT PRIMARY KEY,
+    company_name TEXT NOT NULL,
+    contact_person TEXT,
+    phone TEXT,
+    city TEXT,
+    license_key TEXT UNIQUE NOT NULL,
+    status TEXT DEFAULT 'active', -- 'active' (aktif), 'suspended' (kilitli/kaçak), 'expired'
+    bound_device_id TEXT, -- Cihaz Donanım Kimliği (UUID/Android ID kilidi)
+    bound_device_info TEXT, -- Cihaz Modeli / Tarayıcı
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    last_active_at TIMESTAMPTZ
+);
+
+ALTER TABLE public.tenants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public all for tenants" ON public.tenants;
+CREATE POLICY "Allow public all for tenants" ON public.tenants FOR ALL USING (true) WITH CHECK (true);
+
+-- Tablolara toptancı ayrımı (tenant_id) ekleme
+ALTER TABLE public.dealers ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.inventory_stock ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.warehouse_purchases ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.payables ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.customer_receivables ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.support_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.system_backups ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+ALTER TABLE public.daily_history ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
+
+

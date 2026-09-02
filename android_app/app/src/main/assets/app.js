@@ -8787,3 +8787,209 @@ window.resetTestDataForRestoreDemo = function() {
 
   window.openSupportChatModal = openChatModal;
 })();
+
+// ============================================================================
+// DONANIM CİHAZ KİLİDİ & KAÇAK KULLANIMI ENGELLEME MOTORU (MULTI-TENANT LİSANS)
+// ============================================================================
+(function initHardwareLicenseEngine() {
+  const DEVICE_STORAGE_KEY = 'wholesaler_device_hardware_uuid';
+  const LICENSE_STORAGE_KEY = 'wholesaler_active_license_key';
+  const TENANT_STORAGE_KEY = 'wholesaler_active_tenant_id';
+
+  // Benzersiz Cihaz Donanım Kimliği Üret / Oku
+  function getOrCreateDeviceId() {
+    let deviceId = localStorage.getItem(DEVICE_STORAGE_KEY);
+    if (!deviceId) {
+      const randPart = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const timePart = Date.now().toString(36).toUpperCase();
+      deviceId = `DEV-${randPart}-${timePart}`;
+      localStorage.setItem(DEVICE_STORAGE_KEY, deviceId);
+    }
+    return deviceId;
+  }
+
+  const deviceId = getOrCreateDeviceId();
+
+  async function checkLicenseStatus(isUserInitiated = false) {
+    const modalGate = document.getElementById('modal-license-gate');
+    const alertBox = document.getElementById('lic-gate-alert');
+    const alertText = document.getElementById('lic-gate-alert-text');
+    const keyInp = document.getElementById('input-license-key');
+    const actBtn = document.getElementById('btn-activate-license');
+    const devPrint = document.getElementById('display-device-fingerprint');
+    const titleEl = document.getElementById('lic-gate-title');
+    const descEl = document.getElementById('lic-gate-desc');
+    const inputBox = document.getElementById('lic-gate-input-box');
+
+    if (!modalGate) return;
+
+    if (devPrint) devPrint.textContent = deviceId;
+
+    const savedKey = localStorage.getItem(LICENSE_STORAGE_KEY);
+
+    if (!savedKey) {
+      // Lisans anahtarı girilmemiş -> Giriş Ekranını Aç
+      modalGate.classList.remove('hidden');
+      if (inputBox) inputBox.style.display = 'block';
+      if (actBtn) actBtn.style.display = 'flex';
+      return;
+    }
+
+    try {
+      if (actBtn && isUserInitiated) {
+        actBtn.disabled = true;
+        actBtn.querySelector('span').textContent = 'Lisans Doğrulanıyor...';
+      }
+
+      // Supabase'den bu lisansı sorgula
+      const res = await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants?license_key=eq.${encodeURIComponent(savedKey)}&select=*`, {
+        headers: {
+          'apikey': 'sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
+          'Authorization': 'Bearer sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9'
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error("Lisans sunucusuna ulaşılamadı (HTTP " + res.status + ")");
+      }
+
+      const tenants = await res.json();
+      if (!Array.isArray(tenants) || tenants.length === 0) {
+        // Lisans anahtarı silinmiş veya geçersiz
+        modalGate.classList.remove('hidden');
+        if (alertBox) {
+          alertBox.style.display = 'block';
+          alertText.textContent = 'Kayıtlı lisans anahtarı geçersiz veya sistemden kaldırılmış!';
+        }
+        if (inputBox) inputBox.style.display = 'block';
+        if (actBtn) actBtn.style.display = 'flex';
+        return;
+      }
+
+      const tenant = tenants[0];
+
+      // 1. KONTROL: Toptancı Askıya Alınmış / Kilitlenmiş mi?
+      if (tenant.status === 'suspended') {
+        modalGate.classList.remove('hidden');
+        if (titleEl) titleEl.textContent = '🔒 Erişim Askıya Alındı';
+        if (descEl) descEl.textContent = `"${tenant.company_name}" için sistem erişimi yönetici (Patron) tarafından geçici olarak kilitlenmiştir. Kaçak veya izinsiz kullanım engellenmiştir.`;
+        if (alertBox) {
+          alertBox.style.display = 'block';
+          alertText.textContent = 'UYARI: Sistem erişiminiz kilitlenmiştir. Lütfen yöneticiniz ile iletişime geçiniz.';
+        }
+        if (inputBox) inputBox.style.display = 'none';
+        if (actBtn) actBtn.style.display = 'none';
+        return;
+      }
+
+      // 2. KONTROL: Cihaz Donanım Kilidi (Başka telefona kopyalanmış mı?)
+      if (tenant.bound_device_id && tenant.bound_device_id !== deviceId) {
+        modalGate.classList.remove('hidden');
+        if (titleEl) titleEl.textContent = '⛔ Yetkisiz Cihaz (Kaçak Kopyalama)';
+        if (descEl) descEl.textContent = `Bu lisans anahtarı başka bir cihaza kilitlenmiştir! Sistemi başka telefona kopyalayamazsınız. Telefon değiştirdiyseniz yöneticinizden cihaz kilidini sıfırlamasını isteyiniz.`;
+        if (alertBox) {
+          alertBox.style.display = 'block';
+          alertText.textContent = `HATA: Lisans farklı bir cihazla mühürlüdür! (${tenant.bound_device_id})`;
+        }
+        if (inputBox) inputBox.style.display = 'none';
+        if (actBtn) actBtn.style.display = 'none';
+        return;
+      }
+
+      // 3. İLK GİRİŞ İSE: Cihazı bu lisansa mühürle
+      if (!tenant.bound_device_id) {
+        await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants?tenant_id=eq.${encodeURIComponent(tenant.tenant_id)}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': 'sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
+            'Authorization': 'Bearer sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          },
+          body: JSON.stringify({
+            bound_device_id: deviceId,
+            bound_device_info: (navigator.userAgent || 'Mobil Cihaz').substring(0, 60),
+            last_active_at: new Date().toISOString()
+          })
+        });
+      }
+
+      // Başarılı Lisans -> Sistemi Aç
+      localStorage.setItem(TENANT_STORAGE_KEY, tenant.tenant_id);
+      window.CURRENT_TENANT_ID = tenant.tenant_id;
+      modalGate.classList.add('hidden');
+
+      // Toptancı İsmini Drawer'a yaz
+      const adminNameEl = document.querySelector('.admin-info .name');
+      const adminRoleEl = document.querySelector('.admin-info .role');
+      if (adminNameEl) adminNameEl.textContent = tenant.company_name;
+      if (adminRoleEl) adminRoleEl.textContent = `Lisans: ${tenant.license_key} (${tenant.city || 'Yetkili'})`;
+
+      if (isUserInitiated && typeof showAppToast === 'function') {
+        showAppToast(`Hoş Geldiniz! ${tenant.company_name} lisansı bu cihaza mühürlendi.`, 'success');
+      }
+
+    } catch (err) {
+      console.warn("Lisans kontrol uyarısı (Offline olabilir):", err);
+      // Eğer daha önce doğrulanmış bir anahtar varsa ve internet yoksa kilit koyma, offline devam etsin
+      if (savedKey) {
+        modalGate.classList.add('hidden');
+      }
+    } finally {
+      if (actBtn && isUserInitiated) {
+        actBtn.disabled = false;
+        actBtn.querySelector('span').textContent = 'Cihazı Mühürle & Giriş Yap';
+      }
+    }
+  }
+
+  function setupLicenseEvents() {
+    const actBtn = document.getElementById('btn-activate-license');
+    const keyInp = document.getElementById('input-license-key');
+    const alertBox = document.getElementById('lic-gate-alert');
+    const alertText = document.getElementById('lic-gate-alert-text');
+
+    if (actBtn) {
+      actBtn.onclick = async () => {
+        const key = (keyInp ? keyInp.value : '').trim().toUpperCase();
+        if (!key) {
+          if (alertBox) {
+            alertBox.style.display = 'block';
+            alertText.textContent = 'Lütfen geçerli bir lisans anahtarı giriniz!';
+          }
+          return;
+        }
+
+        localStorage.setItem(LICENSE_STORAGE_KEY, key);
+        await checkLicenseStatus(true);
+      };
+    }
+
+    if (keyInp) {
+      keyInp.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (actBtn) actBtn.click();
+        }
+      };
+    }
+
+    // İlk Kontrol
+    checkLicenseStatus(false);
+
+    // Her 60 saniyede bir arka planda lisans ve kilit durumunu tazele (Patron askıya aldıysa anında kilitlenir)
+    setInterval(() => {
+      checkLicenseStatus(false);
+    }, 60000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupLicenseEvents);
+  } else {
+    setupLicenseEvents();
+  }
+
+  window.checkAppLicense = checkLicenseStatus;
+  window.getAppDeviceId = () => deviceId;
+})();
+

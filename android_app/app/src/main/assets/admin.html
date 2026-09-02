@@ -40,6 +40,14 @@
         <span class="nav-badge" id="badge-overview-status">Canlı</span>
       </a>
 
+      <a class="nav-link" data-target="view-tenants">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><line x1="9" y1="9" x2="9" y2="9.01"/><line x1="9" y1="13" x2="9" y2="13.01"/><line x1="9" y1="17" x2="9" y2="17.01"/></svg>
+          Toptancılar & Lisanslar
+        </div>
+        <span class="nav-badge" id="badge-tenants-count">0</span>
+      </a>
+
       <a class="nav-link" data-target="view-dealers">
         <div class="nav-link-left">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -137,6 +145,17 @@
       </div>
 
       <div class="top-bar-right">
+        <!-- Toptancı Seçici (Global Filtre) -->
+        <div style="display:flex; align-items:center; gap:8px; background:rgba(99,102,241,0.12); border:1px solid var(--border-accent); border-radius:10px; padding:5px 12px;">
+          <span style="font-size:0.75rem; color:#818cf8; font-weight:800; display:flex; align-items:center; gap:4px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/></svg>
+            Toptancı:
+          </span>
+          <select id="global-tenant-selector" style="background:#090e1a; border:1px solid rgba(255,255,255,0.1); color:#ffffff; font-size:0.82rem; font-weight:800; padding:4px 8px; border-radius:6px; outline:none; cursor:pointer;">
+            <option value="ALL">🌐 Tüm Toptancılar (Konsolide)</option>
+          </select>
+        </div>
+
         <div class="cloud-indicator">
           <span class="status-dot"></span>
           <span>Supabase Bulut Aktif</span>
@@ -269,6 +288,97 @@
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA: TOPTANCILAR & CİHAZ LİSANS YÖNETİMİ (MULTI-TENANT)
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-tenants">
+        <!-- KPI KARTLARI -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Kayıtlı Toptancı / Şube</span>
+              <div class="kpi-icon indigo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-tenants-count">0</div>
+            <div class="kpi-subtext">Lisanslı Toptancı Portföyü</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Aktif Toptancı Sayısı</span>
+              <div class="kpi-icon emerald">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-tenants-active">0</div>
+            <div class="kpi-subtext" style="color:#34d399;">Yetkisi Açık & Sahada</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Kilitli / Askıda Toptancı</span>
+              <div class="kpi-icon rose">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-tenants-suspended">0</div>
+            <div class="kpi-subtext" style="color:#fb7185;">Kaçak / Askıya Alınmış</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Cihaz Kilidi Aktif</span>
+              <div class="kpi-icon amber">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-tenants-bound">0</div>
+            <div class="kpi-subtext">Tek Cihaza Mühürlü</div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>🏢 Toptancılar ve Lisanslı Cihazlar Listesi</h3>
+              <p>Her bir toptancının lisans durumu, bağlı cihazı ve sahada erişim yetkileri</p>
+            </div>
+            <div class="card-actions">
+              <input type="text" class="search-bar-input" id="input-search-tenants" placeholder="Firma adı, şehir veya lisans ara..." />
+              <select class="filter-select" id="select-filter-tenant-status">
+                <option value="all">Tüm Durumlar</option>
+                <option value="active">Sadece Aktifler</option>
+                <option value="suspended">Kilitli / Askıdakiler</option>
+              </select>
+              <button type="button" class="btn-primary-action" id="btn-add-new-tenant">
+                + Yeni Toptancı Lisansı Tanımla
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Firma Adı & Şehir</th>
+                  <th>Yetkili & İletişim</th>
+                  <th>Lisans Anahtarı</th>
+                  <th>Cihaz Donanım Kilidi</th>
+                  <th style="text-align:center;">Lisans Durumu</th>
+                  <th style="text-align:center;">Bayi / Stok</th>
+                  <th style="text-align:right;">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="tenants-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -629,6 +739,79 @@
 
     </div>
   </main>
+
+  <!-- ==========================================================================
+       MODAL: TOPTANCI & LİSANS TANIMLAMA / DÜZENLEME MODALI
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-tenant-edit">
+    <div class="admin-modal-card" style="max-width:580px;">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3 id="m-tenant-title">Yeni Toptancı Lisansı Tanımla</h3>
+          <p>Toptancıya özel lisans anahtarı üretir ve cihaz erişimini yönetir</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-tenant-edit">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <input type="hidden" id="m-tenant-id" />
+        <div class="form-group">
+          <label class="form-label">Toptancı / Şirket Adı</label>
+          <input type="text" class="form-input" id="m-tenant-company" placeholder="Örn: Yıldız Tütün & Sigara Dağıtım" required />
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Yetkili Kişi</label>
+            <input type="text" class="form-input" id="m-tenant-contact" placeholder="Örn: Ahmet Yıldız" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefon</label>
+            <input type="text" class="form-input" id="m-tenant-phone" placeholder="05XX XXX XX XX" />
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Şehir / Bölge</label>
+            <input type="text" class="form-input" id="m-tenant-city" placeholder="Örn: İstanbul - Kadıköy" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Lisans Durumu</label>
+            <select class="form-input" id="m-tenant-status">
+              <option value="active">● Aktif (Çalışabilir)</option>
+              <option value="suspended">● Kilitli / Askıda (Erişim Engelli)</option>
+              <option value="expired">● Süresi Doldu</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="background:#060913; border:1px solid var(--border-accent); border-radius:10px; padding:12px;">
+          <label class="form-label" style="color:#818cf8; display:flex; justify-content:space-between;">
+            <span>Lisans Anahtarı (Toptancıya Verilecek)</span>
+            <span style="cursor:pointer; text-decoration:underline; font-size:0.7rem;" id="btn-generate-lic-key">Yeniden Üret ↻</span>
+          </label>
+          <input type="text" class="form-input" id="m-tenant-license-key" style="font-family:var(--font-mono); font-weight:800; font-size:1.05rem; letter-spacing:1px; color:#38bdf8;" required />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Bağlı Cihaz Kilidi (Donanım Kilidi)</label>
+          <input type="text" class="form-input" id="m-tenant-bound-device" readonly style="color:#94a3b8; font-family:var(--font-mono); font-size:0.75rem;" placeholder="Henüz bir cihaza mühürlenmedi (İlk girişte mühürlenir)" />
+          <div style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+            <label style="font-size:0.75rem; color:#cbd5e1; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="m-tenant-reset-device" />
+              <span>Bu toptancının cihaz kilidini sıfırla (Yeni telefona geçiş için)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-tenant-edit">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-tenant-db">Toptancı Lisansını Kaydet</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ==========================================================================
        MODAL: BAYİ DETAY & DÜZENLEME MODALI

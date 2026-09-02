@@ -82,6 +82,8 @@ let AppState = {
   dailyHistory: {},
   backups: [],
   messages: [],
+  tenants: [],
+  selectedTenantId: 'ALL',
   pendingImageBase64: null,
   isLoading: false,
   activeView: 'view-overview'
@@ -96,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearchAndFilters();
   setupModalForms();
   setupSupportChat();
+  setupGlobalTenantSelector();
 
   const refreshBtn = document.getElementById('btn-refresh-all');
   if (refreshBtn) {
@@ -128,7 +131,8 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
       receivablesRes,
       payablesRes,
       backupsRes,
-      messagesRes
+      messagesRes,
+      tenantsRes
     ] = await Promise.all([
       db.get('dealers', 'order=name.asc').catch(() => []),
       db.get('warehouse_purchases', 'order=date.desc').catch(() => []),
@@ -137,7 +141,8 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
       db.get('customer_receivables', 'order=due_date.asc').catch(() => []),
       db.get('payables', 'order=due_date.asc').catch(() => []),
       db.get('system_backups', 'order=export_timestamp.desc&limit=25').catch(() => []),
-      db.get('support_messages', 'order=created_at.asc&limit=100').catch(() => [])
+      db.get('support_messages', 'order=created_at.asc&limit=100').catch(() => []),
+      db.get('tenants', 'order=company_name.asc').catch(() => [])
     ]);
 
     AppState.dealers = Array.isArray(dealersRes) ? dealersRes : [];
@@ -147,6 +152,10 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
     AppState.payables = Array.isArray(payablesRes) ? payablesRes : [];
     AppState.backups = Array.isArray(backupsRes) ? backupsRes : [];
     AppState.messages = Array.isArray(messagesRes) ? messagesRes : [];
+    AppState.tenants = Array.isArray(tenantsRes) ? tenantsRes : [];
+
+    // Toptancı Seçiciyi Güncelle
+    updateGlobalTenantSelectorOptions();
 
     // Stok Haritası Oluştur
     AppState.stocks = {};
@@ -181,6 +190,7 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
 function renderAllViews() {
   renderOverviewKPIs();
   renderOverviewRecentTables();
+  renderTenantsPage();
   renderDealersPage();
   renderSalesPage();
   renderPurchasesPage();
@@ -192,6 +202,7 @@ function renderAllViews() {
 }
 
 function updateBadges() {
+  const tCount = document.getElementById('badge-tenants-count');
   const dCount = document.getElementById('badge-dealers-count');
   const sCount = document.getElementById('badge-sales-count');
   const pCount = document.getElementById('badge-purchases-count');
@@ -201,28 +212,76 @@ function updateBadges() {
   const bCount = document.getElementById('badge-backups-count');
   const supCount = document.getElementById('badge-support-count');
 
-  if (dCount) dCount.textContent = AppState.dealers.length;
+  if (tCount) tCount.textContent = AppState.tenants.length;
+  if (dCount) dCount.textContent = getTenantFilteredList(AppState.dealers).length;
   
-  // Toplam satış sayısı
+  // Toplam satış sayısı (Seçili toptancıya göre)
   let totalSalesCount = 0;
-  AppState.dealers.forEach(d => {
+  getTenantFilteredList(AppState.dealers).forEach(d => {
     if (Array.isArray(d.sales_history)) totalSalesCount += d.sales_history.length;
   });
   if (sCount) sCount.textContent = totalSalesCount;
 
-  if (pCount) pCount.textContent = AppState.purchases.length;
+  if (pCount) pCount.textContent = getTenantFilteredList(AppState.purchases).length;
   if (stockCount) stockCount.textContent = Object.keys(AppState.stocks).length;
-  if (fCount) fCount.textContent = AppState.customerReceivables.length + AppState.payables.length;
+  if (fCount) fCount.textContent = getTenantFilteredList(AppState.customerReceivables).length + getTenantFilteredList(AppState.payables).length;
   if (cCount) cCount.textContent = AppState.catalog.length;
   if (bCount) bCount.textContent = AppState.backups.length;
 
   // Toptancıdan gelen okunmamış mesaj sayısı
-  const unreadCount = AppState.messages.filter(m => m.sender_role === 'toptanci' && !m.is_read).length;
+  const filteredMsgs = getTenantFilteredList(AppState.messages);
+  const unreadCount = filteredMsgs.filter(m => m.sender_role === 'toptanci' && !m.is_read).length;
   if (supCount) {
-    supCount.textContent = unreadCount > 0 ? `${unreadCount} Yeni` : AppState.messages.length;
+    supCount.textContent = unreadCount > 0 ? `${unreadCount} Yeni` : filteredMsgs.length;
     supCount.style.background = unreadCount > 0 ? '#f43f5e' : 'rgba(255,255,255,0.06)';
     supCount.style.color = '#fff';
   }
+}
+
+// Global Toptancı Filtresi Yardımcısı
+function getTenantFilteredList(list) {
+  if (!Array.isArray(list)) return [];
+  if (!AppState.selectedTenantId || AppState.selectedTenantId === 'ALL') {
+    return list;
+  }
+  return list.filter(item => {
+    return item.tenant_id === AppState.selectedTenantId || !item.tenant_id || item.tenant_id === 'default_tenant';
+  });
+}
+
+function setupGlobalTenantSelector() {
+  const sel = document.getElementById('global-tenant-selector');
+  if (!sel) return;
+
+  sel.onchange = () => {
+    AppState.selectedTenantId = sel.value;
+    renderAllViews();
+    updateBadges();
+
+    if (AppState.selectedTenantId === 'ALL') {
+      showToast("Tüm toptancıların konsolide verileri görüntüleniyor.");
+    } else {
+      const t = AppState.tenants.find(x => x.tenant_id === AppState.selectedTenantId);
+      showToast(`Filtre uygulandı: ${t ? t.company_name : AppState.selectedTenantId}`);
+    }
+  };
+}
+
+function updateGlobalTenantSelectorOptions() {
+  const sel = document.getElementById('global-tenant-selector');
+  if (!sel) return;
+
+  const currentVal = AppState.selectedTenantId || 'ALL';
+  let html = `<option value="ALL">🌐 Tüm Toptancılar (Konsolide)</option>`;
+
+  AppState.tenants.forEach(t => {
+    const isSuspended = t.status === 'suspended';
+    const statusMark = isSuspended ? ' [🔒 KİLİTLİ]' : '';
+    html += `<option value="${t.tenant_id}" ${t.tenant_id === currentVal ? 'selected' : ''}>🏢 ${t.company_name} (${t.city || 'Şehir Yok'})${statusMark}</option>`;
+  });
+
+  sel.innerHTML = html;
+  sel.value = currentVal;
 }
 
 // ============================================================================
@@ -237,12 +296,16 @@ function renderOverviewKPIs() {
   const kpiSalesTotal = document.getElementById('kpi-sales-total');
   const kpiProfitSub = document.getElementById('kpi-profit-sub');
 
-  if (kpiDealers) kpiDealers.textContent = AppState.dealers.length;
+  const filteredDealers = getTenantFilteredList(AppState.dealers);
+  const filteredCustomerRec = getTenantFilteredList(AppState.customerReceivables);
+  const filteredPayables = getTenantFilteredList(AppState.payables);
+
+  if (kpiDealers) kpiDealers.textContent = filteredDealers.length;
 
   // Alacaklar
   let totalReceivables = 0;
-  AppState.dealers.forEach(d => totalReceivables += (Number(d.total_debt) || 0));
-  AppState.customerReceivables.forEach(c => totalReceivables += (Number(c.remaining_debt) || Number(c.total_debt) || 0));
+  filteredDealers.forEach(d => totalReceivables += (Number(d.total_debt) || 0));
+  filteredCustomerRec.forEach(c => totalReceivables += (Number(c.remaining_debt) || Number(c.total_debt) || 0));
   if (kpiRecVal) kpiRecVal.textContent = `₺ ${Math.round(totalReceivables).toLocaleString('tr-TR')}`;
 
   // Stoklar
@@ -262,13 +325,13 @@ function renderOverviewKPIs() {
 
   // Borçlar
   let totalPayables = 0;
-  AppState.payables.forEach(p => totalPayables += (Number(p.remaining_amount) || Number(p.total_amount) || 0));
+  filteredPayables.forEach(p => totalPayables += (Number(p.remaining_amount) || Number(p.total_amount) || 0));
   if (kpiPayVal) kpiPayVal.textContent = `₺ ${Math.round(totalPayables).toLocaleString('tr-TR')}`;
 
   // Satışlar & Kâr
   let grandSales = 0;
   let grandProfit = 0;
-  AppState.dealers.forEach(d => {
+  filteredDealers.forEach(d => {
     if (Array.isArray(d.sales_history)) {
       d.sales_history.forEach(s => {
         grandSales += (Number(s.total) || Number(s.totalAmount) || 0);
@@ -284,9 +347,10 @@ function renderOverviewRecentTables() {
   const salesTbody = document.getElementById('overview-recent-sales-tbody');
   const purTbody = document.getElementById('overview-recent-purchases-tbody');
 
-  // En son 6 satışı topla
+  // En son 6 satışı topla (Filtreli)
   const allSales = [];
-  AppState.dealers.forEach(d => {
+  const filteredDealers = getTenantFilteredList(AppState.dealers);
+  filteredDealers.forEach(d => {
     if (Array.isArray(d.sales_history)) {
       d.sales_history.forEach(s => {
         allSales.push({ ...s, dealerName: d.name, dealerId: d.dealer_id });
@@ -316,11 +380,12 @@ function renderOverviewRecentTables() {
   }
 
   // En son 5 alım
+  const filteredPurchases = getTenantFilteredList(AppState.purchases);
   if (purTbody) {
-    if (AppState.purchases.length === 0) {
+    if (filteredPurchases.length === 0) {
       purTbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#64748b; padding:20px;">Henüz alım kaydı bulunamadı.</td></tr>`;
     } else {
-      purTbody.innerHTML = AppState.purchases.slice(0, 5).map(p => `
+      purTbody.innerHTML = filteredPurchases.slice(0, 5).map(p => `
         <tr>
           <td>${p.date || 'Tarih Yok'}</td>
           <td><strong>${p.factory_name || 'Ana Dağıtım'}</strong></td>
@@ -336,6 +401,104 @@ function renderOverviewRecentTables() {
 }
 
 // ============================================================================
+// 1.5. TOPTANCILAR & LİSANS YÖNETİMİ SAYFASI (MULTI-TENANT)
+// ============================================================================
+function renderTenantsPage() {
+  const tbody = document.getElementById('tenants-page-tbody');
+  const searchInp = document.getElementById('input-search-tenants');
+  const filterSelect = document.getElementById('select-filter-tenant-status');
+
+  // KPI Kartları
+  const kpiCount = document.getElementById('kpi-tenants-count');
+  const kpiActive = document.getElementById('kpi-tenants-active');
+  const kpiSuspended = document.getElementById('kpi-tenants-suspended');
+  const kpiBound = document.getElementById('kpi-tenants-bound');
+
+  if (kpiCount) kpiCount.textContent = AppState.tenants.length;
+  if (kpiActive) kpiActive.textContent = AppState.tenants.filter(t => t.status === 'active').length;
+  if (kpiSuspended) kpiSuspended.textContent = AppState.tenants.filter(t => t.status === 'suspended').length;
+  if (kpiBound) kpiBound.textContent = AppState.tenants.filter(t => !!t.bound_device_id).length;
+
+  if (!tbody) return;
+
+  const query = (searchInp ? searchInp.value : '').toLowerCase().trim();
+  const filter = filterSelect ? filterSelect.value : 'all';
+
+  let list = [...AppState.tenants];
+  if (query) {
+    list = list.filter(t => 
+      (t.company_name || '').toLowerCase().includes(query) ||
+      (t.contact_person || '').toLowerCase().includes(query) ||
+      (t.phone || '').toLowerCase().includes(query) ||
+      (t.city || '').toLowerCase().includes(query) ||
+      (t.license_key || '').toLowerCase().includes(query)
+    );
+  }
+
+  if (filter === 'active') {
+    list = list.filter(t => t.status === 'active');
+  } else if (filter === 'suspended') {
+    list = list.filter(t => t.status === 'suspended');
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:30px; color:#64748b;">Kayıtlı toptancı lisansı bulunamadı. "+ Yeni Toptancı Lisansı Tanımla" butonundan ekleyebilirsiniz.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(t => {
+    const isSuspended = t.status === 'suspended';
+    const isBound = !!t.bound_device_id;
+    
+    // Bu toptancıya ait bayi sayısı
+    const dealerCount = AppState.dealers.filter(d => d.tenant_id === t.tenant_id).length;
+
+    let statusBadge = '';
+    if (t.status === 'active') {
+      statusBadge = `<span class="badge badge-emerald">● Aktif (Sahada)</span>`;
+    } else if (t.status === 'suspended') {
+      statusBadge = `<span class="badge badge-rose">● Kilitli / Askıda</span>`;
+    } else {
+      statusBadge = `<span class="badge badge-subtle">● Süresi Doldu</span>`;
+    }
+
+    const deviceBadge = isBound
+      ? `<span class="badge badge-indigo" title="${t.bound_device_id}">📱 Kilitli (${t.bound_device_info || 'Cihaz'})</span>`
+      : `<span class="badge badge-subtle">Serbest (İlk Giriş Bekliyor)</span>`;
+
+    return `
+      <tr style="${isSuspended ? 'background:rgba(244,63,94,0.04);' : ''}">
+        <td>
+          <strong style="color:#fff; font-size:0.92rem;">${t.company_name}</strong><br>
+          <span style="font-size:0.72rem; color:#94a3b8;">${t.city || 'Bölge Belirtilmedi'}</span>
+        </td>
+        <td>
+          <span style="color:#e2e8f0;">${t.contact_person || '-'}</span><br>
+          <a href="tel:${t.phone}" style="color:#818cf8; text-decoration:none; font-size:0.75rem;">${t.phone || '-'}</a>
+        </td>
+        <td>
+          <span class="mono-val badge badge-indigo" style="font-size:0.8rem; letter-spacing:0.5px;">${t.license_key}</span>
+        </td>
+        <td>${deviceBadge}</td>
+        <td style="text-align:center;">${statusBadge}</td>
+        <td style="text-align:center;">
+          <span style="font-size:0.75rem; color:#cbd5e1; font-weight:700;">${dealerCount} Bayi</span>
+        </td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button class="btn-tbl btn-tbl-primary" onclick="selectAndInspectTenant('${t.tenant_id}')" title="Bu toptancının verilerine geç">🔍 İncele</button>
+          ${!isSuspended 
+            ? `<button class="btn-tbl btn-tbl-rose" onclick="toggleTenantStatus('${t.tenant_id}', 'suspended')" title="Toptancının uygulamasını kilitle">🔒 Kilitle</button>` 
+            : `<button class="btn-tbl btn-tbl-emerald" onclick="toggleTenantStatus('${t.tenant_id}', 'active')" title="Kilidi aç">🔓 Aç</button>`}
+          ${isBound ? `<button class="btn-tbl btn-tbl-primary" onclick="resetTenantDevice('${t.tenant_id}')" title="Cihaz kilidini sıfırla">🔑 Cihazı Sıfırla</button>` : ''}
+          <button class="btn-tbl btn-tbl-primary" onclick="openTenantEditModal('${t.tenant_id}')" title="Düzenle">✏️</button>
+          <button class="btn-tbl btn-tbl-rose" onclick="deleteTenantRecord('${t.tenant_id}')" title="Sil">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ============================================================================
 // 2. SATIŞ NOKTALARI & BAYİLER SAYFASI
 // ============================================================================
 function renderDealersPage() {
@@ -347,7 +510,7 @@ function renderDealersPage() {
   const query = (searchInp ? searchInp.value : '').toLowerCase().trim();
   const filter = filterSelect ? filterSelect.value : 'all';
 
-  let list = [...AppState.dealers];
+  let list = getTenantFilteredList(AppState.dealers);
 
   if (query) {
     list = list.filter(d => (d.name || '').toLowerCase().includes(query) || (d.owner || '').toLowerCase().includes(query) || (d.region || '').toLowerCase().includes(query));
@@ -401,7 +564,8 @@ function renderSalesPage() {
   const filter = filterSelect ? filterSelect.value : 'all';
 
   const allSales = [];
-  AppState.dealers.forEach(d => {
+  const filteredDealers = getTenantFilteredList(AppState.dealers);
+  filteredDealers.forEach(d => {
     if (Array.isArray(d.sales_history)) {
       d.sales_history.forEach(s => {
         allSales.push({ ...s, dealerName: d.name, dealerId: d.dealer_id });
@@ -453,7 +617,7 @@ function renderPurchasesPage() {
   if (!tbody) return;
 
   const query = (searchInp ? searchInp.value : '').toLowerCase().trim();
-  let list = [...AppState.purchases];
+  let list = getTenantFilteredList(AppState.purchases);
 
   if (query) {
     list = list.filter(p => (p.invoice_no || '').toLowerCase().includes(query) || (p.factory_name || '').toLowerCase().includes(query) || (p.cig_name || '').toLowerCase().includes(query));
@@ -556,10 +720,11 @@ function renderFinancePage() {
   const recTbody = document.getElementById('finance-receivables-tbody');
   const payTbody = document.getElementById('finance-payables-tbody');
 
-  // Alacaklar (Bayiler + Müşteri Alacakları)
+  // Alacaklar (Bayiler + Müşteri Alacakları) - Filtreli
   if (recTbody) {
     const combinedRec = [];
-    AppState.dealers.forEach(d => {
+    const filteredDealers = getTenantFilteredList(AppState.dealers);
+    filteredDealers.forEach(d => {
       const debt = Number(d.total_debt) || 0;
       if (debt > 0) {
         combinedRec.push({
@@ -572,7 +737,8 @@ function renderFinancePage() {
       }
     });
 
-    AppState.customerReceivables.forEach(c => {
+    const filteredCustomerRec = getTenantFilteredList(AppState.customerReceivables);
+    filteredCustomerRec.forEach(c => {
       combinedRec.push({
         type: 'customer',
         id: c.rec_id,
@@ -600,12 +766,13 @@ function renderFinancePage() {
     }
   }
 
-  // Borçlar (Payables)
+  // Borçlar (Payables) - Filtreli
+  const filteredPayables = getTenantFilteredList(AppState.payables);
   if (payTbody) {
-    if (AppState.payables.length === 0) {
+    if (filteredPayables.length === 0) {
       payTbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#64748b; padding:20px;">Tedarikçi borcu bulunmuyor.</td></tr>`;
     } else {
-      payTbody.innerHTML = AppState.payables.map(p => `
+      payTbody.innerHTML = filteredPayables.map(p => `
         <tr>
           <td><strong style="color:#fff;">${p.supplier_name}</strong><br><span style="font-size:0.7rem; color:#94a3b8;">${p.note || ''}</span></td>
           <td>${p.due_date || 'Vade Yok'}</td>
@@ -906,6 +1073,105 @@ function escapeHtml(text) {
 // ============================================================================
 // MODALLAR VE DÜZENLEME İŞLEMLERİ (SUPABASE WRITE)
 // ============================================================================
+
+// 0. Toptancı Lisansı Oluştur / Düzenle Modalı
+function openTenantEditModal(tenantId = null) {
+  const modal = document.getElementById('modal-tenant-edit');
+  const title = document.getElementById('m-tenant-title');
+  const idInp = document.getElementById('m-tenant-id');
+  const compInp = document.getElementById('m-tenant-company');
+  const contactInp = document.getElementById('m-tenant-contact');
+  const phoneInp = document.getElementById('m-tenant-phone');
+  const cityInp = document.getElementById('m-tenant-city');
+  const statusSel = document.getElementById('m-tenant-status');
+  const licKeyInp = document.getElementById('m-tenant-license-key');
+  const boundDevInp = document.getElementById('m-tenant-bound-device');
+  const resetDevCheck = document.getElementById('m-tenant-reset-device');
+
+  if (resetDevCheck) resetDevCheck.checked = false;
+
+  if (tenantId) {
+    const t = AppState.tenants.find(x => x.tenant_id === tenantId);
+    if (!t) return;
+    title.textContent = `Toptancı Düzenle: ${t.company_name}`;
+    idInp.value = t.tenant_id;
+    compInp.value = t.company_name || '';
+    contactInp.value = t.contact_person || '';
+    phoneInp.value = t.phone || '';
+    cityInp.value = t.city || '';
+    statusSel.value = t.status || 'active';
+    licKeyInp.value = t.license_key || '';
+    boundDevInp.value = t.bound_device_id ? `📱 Kilitli Cihaz: ${t.bound_device_info || t.bound_device_id}` : 'Henüz cihaz bağlanmadı';
+  } else {
+    title.textContent = "Yeni Toptancı Lisansı Tanımla";
+    idInp.value = `tenant-${Date.now()}`;
+    compInp.value = "";
+    contactInp.value = "";
+    phoneInp.value = "";
+    cityInp.value = "İstanbul";
+    statusSel.value = "active";
+    licKeyInp.value = generateLicenseKey();
+    boundDevInp.value = "Henüz cihaz bağlanmadı (İlk girişte mühürlenir)";
+  }
+
+  modal.classList.add('open');
+}
+
+function generateLicenseKey() {
+  const rand1 = Math.floor(1000 + Math.random() * 9000);
+  const rand2 = Math.floor(1000 + Math.random() * 9000);
+  return `LIC-${rand1}-${rand2}`;
+}
+
+async function toggleTenantStatus(tenantId, newStatus) {
+  const t = AppState.tenants.find(x => x.tenant_id === tenantId);
+  const actionText = newStatus === 'suspended' ? 'KİLİTLENECEK ve sahada uygulaması anında engellenecektir' : 'AÇILACAKTIR';
+  if (!confirm(`"${t ? t.company_name : tenantId}" toptancısının erişimi ${actionText}. Onaylıyor musunuz?`)) return;
+
+  try {
+    await db.patch('tenants', `tenant_id=eq.${tenantId}`, { status: newStatus });
+    showToast(newStatus === 'suspended' ? "Toptancı erişimi kilitlendi!" : "Toptancı erişimi açıldı!");
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`İşlem hatası: ${err.message}`);
+  }
+}
+
+async function resetTenantDevice(tenantId) {
+  if (!confirm("Bu toptancının cihaz donanım kilidi sıfırlanacaktır. Toptancı yeni telefonunda lisans anahtarını girerek giriş yapabilir. Onaylıyor musunuz?")) return;
+  try {
+    await db.patch('tenants', `tenant_id=eq.${tenantId}`, {
+      bound_device_id: null,
+      bound_device_info: null
+    });
+    showToast("Cihaz kilidi sıfırlandı! Toptancı yeni cihazından giriş yapabilir.");
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`Cihaz sıfırlama hatası: ${err.message}`);
+  }
+}
+
+function selectAndInspectTenant(tenantId) {
+  const sel = document.getElementById('global-tenant-selector');
+  if (sel) sel.value = tenantId;
+  AppState.selectedTenantId = tenantId;
+  switchView('view-overview');
+  renderAllViews();
+  updateBadges();
+  const t = AppState.tenants.find(x => x.tenant_id === tenantId);
+  showToast(`"${t ? t.company_name : tenantId}" toptancısının verileri inceleniyor.`);
+}
+
+async function deleteTenantRecord(tenantId) {
+  if (!confirm("Bu toptancı kaydı silinecektir. Emin misiniz?")) return;
+  try {
+    await db.delete('tenants', `tenant_id=eq.${tenantId}`);
+    showToast("Toptancı kaydı silindi!");
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`Silme hatası: ${err.message}`);
+  }
+}
 
 // 1. Bayi Düzenle / Yeni Bayi Modalı
 function openDealerEditModal(dealerId = null) {
@@ -1325,6 +1591,70 @@ function setupModalForms() {
       }
     };
   }
+
+  // Toptancı Lisansı Kaydetme Butonu
+  const saveTenantBtn = document.getElementById('btn-save-tenant-db');
+  const addTenantBtn = document.getElementById('btn-add-new-tenant');
+  const genLicBtn = document.getElementById('btn-generate-lic-key');
+
+  if (addTenantBtn) {
+    addTenantBtn.onclick = () => openTenantEditModal(null);
+  }
+
+  if (genLicBtn) {
+    genLicBtn.onclick = () => {
+      document.getElementById('m-tenant-license-key').value = generateLicenseKey();
+    };
+  }
+
+  if (saveTenantBtn) {
+    saveTenantBtn.onclick = async () => {
+      const id = document.getElementById('m-tenant-id').value.trim() || `tenant-${Date.now()}`;
+      const company = document.getElementById('m-tenant-company').value.trim();
+      const contact = document.getElementById('m-tenant-contact').value.trim();
+      const phone = document.getElementById('m-tenant-phone').value.trim();
+      const city = document.getElementById('m-tenant-city').value.trim();
+      const status = document.getElementById('m-tenant-status').value;
+      const licenseKey = document.getElementById('m-tenant-license-key').value.trim();
+      const resetDevice = document.getElementById('m-tenant-reset-device')?.checked;
+
+      if (!company || !licenseKey) {
+        alert("Lütfen firma adı ve lisans anahtarını eksiksiz giriniz!");
+        return;
+      }
+
+      try {
+        saveTenantBtn.disabled = true;
+        saveTenantBtn.textContent = "Kaydediliyor...";
+
+        const record = {
+          tenant_id: id,
+          company_name: company,
+          contact_person: contact,
+          phone: phone,
+          city: city,
+          status: status,
+          license_key: licenseKey,
+          last_active_at: new Date().toISOString()
+        };
+
+        if (resetDevice) {
+          record.bound_device_id = null;
+          record.bound_device_info = null;
+        }
+
+        await db.post('tenants', record, true);
+        showToast(`"${company}" toptancı lisansı başarıyla kaydedildi!`);
+        document.getElementById('modal-tenant-edit').classList.remove('open');
+        await loadAllDataFromSupabase();
+      } catch (err) {
+        alert(`Toptancı kayıt hatası: ${err.message}`);
+      } finally {
+        saveTenantBtn.disabled = false;
+        saveTenantBtn.textContent = "Toptancı Lisansını Kaydet";
+      }
+    };
+  }
 }
 
 // ============================================================================
@@ -1436,6 +1766,7 @@ function switchView(viewId) {
   // Başlık güncellemeleri
   const titles = {
     'view-overview': { title: "Genel Bakış", desc: "Tüm toptancı operasyonunun anlık finans ve stok durumu" },
+    'view-tenants': { title: "Toptancılar & Lisans Yönetimi", desc: "Toptancıların lisans durumları, cihaz kilitleri ve kaçak kullanım engelleme" },
     'view-dealers': { title: "Satış Noktaları & Bayiler", desc: "Toptancının çalıştığı tüm marketler, borçlar ve telefonlar" },
     'view-sales': { title: "Satışlar & Siparişler", desc: "Sahada toptancı elemanının yaptığı tüm teslimatlar ve fişler" },
     'view-purchases': { title: "Fabrika & Depo Alımları", desc: "Depoya fabrikalardan ne alındı, ne kadar maliyet ödendi" },
@@ -1473,6 +1804,11 @@ function setupModalDismissHandlers() {
 }
 
 function setupSearchAndFilters() {
+  const searchTenants = document.getElementById('input-search-tenants');
+  const filterTenants = document.getElementById('select-filter-tenant-status');
+  if (searchTenants) searchTenants.oninput = () => renderTenantsPage();
+  if (filterTenants) filterTenants.onchange = () => renderTenantsPage();
+
   const searchDealers = document.getElementById('input-search-dealers');
   const filterDealers = document.getElementById('select-filter-dealer-debt');
   if (searchDealers) searchDealers.oninput = () => renderDealersPage();
@@ -1536,8 +1872,20 @@ function showToast(msg, isError = false) {
 }
 
 // Global Fonksiyonlar
+window.openTenantEditModal = openTenantEditModal;
+window.toggleTenantStatus = toggleTenantStatus;
+window.resetTenantDevice = resetTenantDevice;
+window.selectAndInspectTenant = selectAndInspectTenant;
+window.deleteTenantRecord = deleteTenantRecord;
 window.openDealerEditModal = openDealerEditModal;
 window.openStockEditModal = openStockEditModal;
+window.openCatalogEditModal = openCatalogEditModal;
+window.viewSaleDetailsModal = viewSaleDetailsModal;
+window.deletePurchaseRecord = deletePurchaseRecord;
+window.deleteCustomerRecRecord = deleteCustomerRecRecord;
+window.deletePayableRecord = deletePayableRecord;
+window.downloadBackupJson = downloadBackupJson;
+window.switchView = switchView;
 window.openCatalogEditModal = openCatalogEditModal;
 window.viewSaleDetailsModal = viewSaleDetailsModal;
 window.deletePurchaseRecord = deletePurchaseRecord;
