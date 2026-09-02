@@ -8769,23 +8769,38 @@ window.resetTestDataForRestoreDemo = function() {
     }
   }
 
-  function openChatModal() {
+  function openChatModal(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const panel = document.getElementById('drawer-panel');
+    const backdrop = document.getElementById('drawer-backdrop');
+    if (panel) panel.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+
     const modal = document.getElementById('modal-support-chat');
     if (modal) {
       modal.classList.remove('hidden');
-      renderChatMessages();
-      fetchMessages(false);
+      modal.style.display = 'flex';
+    }
+    renderChatMessages();
+    fetchMessages(false);
+  }
+
+  function closeChatModal(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const modal = document.getElementById('modal-support-chat');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
     }
   }
 
-  function closeChatModal() {
-    const modal = document.getElementById('modal-support-chat');
-    if (modal) modal.classList.add('hidden');
-  }
+  window.openSupportChatModal = openChatModal;
+  window.closeSupportChatModal = closeChatModal;
 
   function setupEvents() {
     const drawerBtn = document.getElementById('drawer-btn-support-chat');
     const closeBtn = document.getElementById('btn-close-support-chat');
+    const modal = document.getElementById('modal-support-chat');
     const sendBtn = document.getElementById('btn-app-send-message');
     const textInp = document.getElementById('app-support-input-text');
     const attachBtn = document.getElementById('btn-app-attach-photo');
@@ -8796,8 +8811,13 @@ window.resetTestDataForRestoreDemo = function() {
     const previewDocName = document.getElementById('app-support-preview-doc-name');
     const removePreviewBtn = document.getElementById('btn-remove-app-preview');
 
-    if (drawerBtn) drawerBtn.onclick = (e) => { e.preventDefault(); openChatModal(); };
+    if (drawerBtn) drawerBtn.onclick = openChatModal;
     if (closeBtn) closeBtn.onclick = closeChatModal;
+    if (modal) {
+      modal.onclick = (e) => {
+        if (e.target === modal) closeChatModal();
+      };
+    }
 
     if (attachBtn && fileInp) {
       attachBtn.onclick = () => fileInp.click();
