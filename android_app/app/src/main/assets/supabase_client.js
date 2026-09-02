@@ -384,3 +384,59 @@ window.WarehousePurchasesService = WarehousePurchasesService;
 window.InventoryStockService = InventoryStockService;
 window.CigarettesCatalogService = CigarettesCatalogService;
 window.DailyHistoryService = DailyHistoryService;
+
+/* ============================================================================
+   OTOMATİK ÇIKIŞ SENKRONİZASYONU (Uygulamadan Çıkıldığında Buluta Yedekleme)
+   ============================================================================ */
+let isAutoSyncing = false;
+let lastAutoSyncTime = 0;
+
+window.triggerAutoCloudSyncOnExit = async function() {
+  const now = Date.now();
+  // Minimum 10 saniye aralıkla çalışarak gereksiz yoğunluğu engelle
+  if (isAutoSyncing || (now - lastAutoSyncTime < 10000)) return;
+  
+  try {
+    isAutoSyncing = true;
+    lastAutoSyncTime = now;
+
+    if (typeof createSystemBackupPayload !== 'function') return;
+    const payload = createSystemBackupPayload("Çıkış Anında Otomatik Bulut Yedeği");
+
+    // 1. Tam Sistem Yedeği Gönder
+    await SystemBackupService.uploadBackup(payload);
+
+    // 2. Temel Tabloları Güncelle
+    if (typeof dealersData !== 'undefined' && Array.isArray(dealersData) && dealersData.length > 0) {
+      await DealersService.syncAllDealers(dealersData);
+    }
+    if (typeof inventoryStock !== 'undefined' && Object.keys(inventoryStock).length > 0) {
+      await InventoryStockService.syncStock(inventoryStock);
+    }
+    if (typeof dailyHistoryStore !== 'undefined' && Object.keys(dailyHistoryStore).length > 0) {
+      await DailyHistoryService.syncDailyHistory(dailyHistoryStore);
+    }
+
+    console.log("[Supabase Auto-Sync] Çıkış anında tüm veriler buluta başarıyla kaydedildi.");
+  } catch (err) {
+    console.warn("[Supabase Auto-Sync] Arka plan çıkış yedekleme uyarısı:", err.message);
+  } finally {
+    isAutoSyncing = false;
+  }
+};
+
+// Tarayıcı / WebView Kapanma ve Arka Plana Geçme Olayları
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    window.triggerAutoCloudSyncOnExit();
+  }
+});
+
+window.addEventListener('pagehide', () => {
+  window.triggerAutoCloudSyncOnExit();
+});
+
+window.addEventListener('beforeunload', () => {
+  window.triggerAutoCloudSyncOnExit();
+});
+

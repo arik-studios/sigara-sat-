@@ -136,8 +136,23 @@ class MainActivity : ComponentActivity() {
         })
     }
 
+    override fun onPause() {
+        super.onPause()
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript("if (window.triggerAutoCloudSyncOnExit) window.triggerAutoCloudSyncOnExit();", null)
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript("if (window.triggerAutoCloudSyncOnExit) window.triggerAutoCloudSyncOnExit();", null)
+        }
+    }
+
     override fun onDestroy() {
         if (::webView.isInitialized) {
+            webView.evaluateJavascript("if (window.triggerAutoCloudSyncOnExit) window.triggerAutoCloudSyncOnExit();", null)
             webView.destroy()
         }
         super.onDestroy()
