@@ -854,27 +854,75 @@ function renderBackupsPage() {
 }
 
 // ============================================================================
-// 9. CANLI DESTEK & FOTOĞRAFLI MESAJLAŞMA MOTORU
+// 9. CANLI DESTEK, BELGE PAYLAŞIMI & OTOMATİK BULUT TEMİZLEME MOTORU
 // ============================================================================
+const ADMIN_LOCAL_CHAT_KEY = 'admin_local_support_chat_history';
+
+function getAdminChatArchive() {
+  try {
+    const raw = localStorage.getItem(ADMIN_LOCAL_CHAT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveAdminChatArchive(msgs) {
+  try {
+    localStorage.setItem(ADMIN_LOCAL_CHAT_KEY, JSON.stringify(msgs));
+  } catch (e) {}
+}
+
 async function loadSupportMessages(shouldScroll = true) {
   try {
-    const res = await db.get('support_messages', 'order=created_at.asc&limit=150');
-    if (Array.isArray(res)) {
-      const prevLength = AppState.messages.length;
-      AppState.messages = res;
-      renderSupportMessages(shouldScroll);
-      updateBadges();
+    const remoteRes = await db.get('support_messages', 'order=created_at.asc&limit=200');
+    let localArchive = getAdminChatArchive();
 
-      // Yeni toptancı mesajı geldiyse ses / toast bildir
-      if (res.length > prevLength && prevLength > 0) {
-        const lastMsg = res[res.length - 1];
-        if (lastMsg.sender_role === 'toptanci') {
-          showToast(`🔔 Toptancı'dan Yeni Mesaj: ${lastMsg.message_text || 'Fotoğraf gönderildi'}`);
+    if (Array.isArray(remoteRes) && remoteRes.length > 0) {
+      // 1. Yeni gelen mesajları yerel arşive ekle (Deduplicate)
+      const map = new Map();
+      localArchive.forEach(m => { if (m.id) map.set(m.id, m); });
+
+      let newWholesalerMsgCount = 0;
+      const idsToPrune = [];
+
+      remoteRes.forEach(m => {
+        if (!map.has(m.id) && m.sender_role === 'toptanci') {
+          newWholesalerMsgCount++;
+        }
+        map.set(m.id, m);
+        idsToPrune.push(m.id);
+      });
+
+      localArchive = Array.from(map.values());
+      localArchive.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+      saveAdminChatArchive(localArchive);
+      AppState.messages = localArchive;
+
+      if (newWholesalerMsgCount > 0) {
+        showToast(`🔔 Toptancı'dan ${newWholesalerMsgCount} yeni mesaj/belge bilgisayarınıza kaydedildi!`);
+      }
+
+      // 2. OTOMATİK SUPABASE TEMİZLİĞİ:
+      // Bilgisayarınıza indirilen mesajları Supabase'den siliyoruz ki bulutta gereksiz yer kaplamasın!
+      if (idsToPrune.length > 0) {
+        try {
+          await db.delete('support_messages', `id=in.(${idsToPrune.join(',')})`);
+          console.log(`[Bulut Temizliği] ${idsToPrune.length} adet mesaj bilgisayarınıza arşivlendi ve Supabase'den temizlendi.`);
+        } catch (delErr) {
+          console.warn("Supabase temizleme uyarısı:", delErr);
         }
       }
+    } else {
+      AppState.messages = localArchive;
     }
+
+    renderSupportMessages(shouldScroll);
+    updateBadges();
   } catch (err) {
     console.warn("Mesajlar yüklenemedi:", err.message);
+    AppState.messages = getAdminChatArchive();
+    renderSupportMessages(shouldScroll);
   }
 }
 
@@ -882,18 +930,21 @@ function renderSupportMessages(shouldScroll = true) {
   const box = document.getElementById('admin-chat-box');
   if (!box) return;
 
-  if (AppState.messages.length === 0) {
+  const filteredMessages = getTenantFilteredList(AppState.messages);
+
+  if (filteredMessages.length === 0) {
     box.innerHTML = `
       <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
         <div style="font-size:2rem; margin-bottom:8px;">💬</div>
         Henüz mesajlaşma geçmişi bulunmuyor.<br>
-        Aşağıdaki kutudan toptancınıza mesaj veya fotoğraf gönderebilirsiniz.
+        Aşağıdaki kutudan toptancınıza mesaj, fotoğraf veya PDF/Word belgeleri gönderebilirsiniz.<br>
+        <span style="font-size:0.75rem; color:#10b981; margin-top:6px; display:inline-block;">* Bilgisayarınıza yüklenen mesajlar otomatik arşivlenip Supabase'den silinir.</span>
       </div>
     `;
     return;
   }
 
-  box.innerHTML = AppState.messages.map(m => {
+  box.innerHTML = filteredMessages.map(m => {
     const isAdmin = m.sender_role === 'admin';
     const alignStyle = isAdmin ? 'margin-left:auto; text-align:right;' : 'margin-right:auto; text-align:left;';
     const bubbleBg = isAdmin
@@ -905,13 +956,28 @@ function renderSupportMessages(shouldScroll = true) {
 
     const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
 
-    let imageHtml = '';
+    let attachmentHtml = '';
     if (m.image_url) {
-      imageHtml = `
-        <div style="margin-top:6px; margin-bottom:4px;">
-          <img src="${m.image_url}" alt="Ek" style="max-width:240px; max-height:220px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="window.open('${m.image_url}', '_blank')" title="Büyütmek için tıklayın" />
-        </div>
-      `;
+      if (m.image_url.startsWith('data:image/') || m.image_url.match(/\.(jpeg|jpg|png|webp|gif)/i)) {
+        attachmentHtml = `
+          <div style="margin-top:6px; margin-bottom:4px;">
+            <img src="${m.image_url}" alt="Fotoğraf" style="max-width:240px; max-height:220px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="window.open('${m.image_url}', '_blank')" title="Büyütmek için tıklayın" />
+          </div>
+        `;
+      } else {
+        // PDF, Word veya diğer belgeler
+        const fileName = m.attachment_name || 'belge_indir';
+        attachmentHtml = `
+          <div style="margin-top:8px; margin-bottom:4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; text-align:left;">
+            <span style="font-size:1.6rem;">📄</span>
+            <div style="flex:1; overflow:hidden;">
+              <div style="font-size:0.75rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${fileName}</div>
+              <div style="font-size:0.65rem; color:#94a3b8;">Belge / Doküman</div>
+            </div>
+            <a href="${m.image_url}" download="${fileName}" style="background:#10b981; color:#fff; text-decoration:none; font-size:0.72rem; font-weight:800; padding:5px 10px; border-radius:6px; flex-shrink:0;">İndir 📥</a>
+          </div>
+        `;
+      }
     }
 
     return `
@@ -923,7 +989,7 @@ function renderSupportMessages(shouldScroll = true) {
           ${isAdmin ? roleBadge : ''}
         </div>
         <div style="display:inline-block; padding:10px 14px; border-radius:12px; font-size:0.85rem; line-height:1.4; word-break:break-word; text-align:left; box-shadow:0 2px 8px rgba(0,0,0,0.2); ${bubbleBg}">
-          ${imageHtml}
+          ${attachmentHtml}
           ${m.message_text ? `<div>${escapeHtml(m.message_text)}</div>` : ''}
         </div>
       </div>
@@ -940,10 +1006,14 @@ function setupSupportChat() {
   const attachBtn = document.getElementById('btn-admin-attach-photo');
   const previewStrip = document.getElementById('admin-chat-preview-strip');
   const previewImg = document.getElementById('admin-chat-preview-img');
+  const previewDoc = document.getElementById('admin-chat-preview-doc');
+  const previewDocName = document.getElementById('admin-chat-preview-doc-name');
   const removePreviewBtn = document.getElementById('btn-remove-admin-preview');
   const sendBtn = document.getElementById('btn-admin-send-message');
   const textInp = document.getElementById('admin-chat-input-text');
   const refreshMsgBtn = document.getElementById('btn-refresh-messages');
+
+  let pendingAttachment = null; // { type: 'image' | 'document', data: base64, name: string }
 
   if (attachBtn && fileInp) {
     attachBtn.onclick = () => fileInp.click();
@@ -952,21 +1022,33 @@ function setupSupportChat() {
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (loadEvt) => {
-        // Görseli Canvas ile sıkıştır (Maksimum 1000px genişlik / yükseklik)
-        compressImage(loadEvt.target.result, 1000, 0.75, (compressedBase64) => {
-          AppState.pendingImageBase64 = compressedBase64;
-          if (previewImg) previewImg.src = compressedBase64;
+      if (file.type.startsWith('image/')) {
+        reader.onload = (loadEvt) => {
+          compressImage(loadEvt.target.result, 1000, 0.75, (compressedBase64) => {
+            pendingAttachment = { type: 'image', data: compressedBase64, name: file.name };
+            if (previewImg) { previewImg.src = compressedBase64; previewImg.style.display = 'block'; }
+            if (previewDoc) previewDoc.style.display = 'none';
+            if (previewStrip) previewStrip.style.display = 'flex';
+          });
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // PDF, Word, Excel veya diğer belgeler
+        reader.onload = (loadEvt) => {
+          pendingAttachment = { type: 'document', data: loadEvt.target.result, name: file.name };
+          if (previewImg) previewImg.style.display = 'none';
+          if (previewDoc) previewDoc.style.display = 'flex';
+          if (previewDocName) previewDocName.textContent = file.name;
           if (previewStrip) previewStrip.style.display = 'flex';
-        });
-      };
-      reader.readAsDataURL(file);
+        };
+        reader.readAsDataURL(file);
+      }
     };
   }
 
   if (removePreviewBtn) {
     removePreviewBtn.onclick = () => {
-      AppState.pendingImageBase64 = null;
+      pendingAttachment = null;
       if (fileInp) fileInp.value = '';
       if (previewStrip) previewStrip.style.display = 'none';
     };
@@ -974,10 +1056,10 @@ function setupSupportChat() {
 
   const handleSendMessage = async () => {
     const text = textInp ? textInp.value.trim() : '';
-    const img = AppState.pendingImageBase64;
+    const att = pendingAttachment;
 
-    if (!text && !img) {
-      alert("Lütfen bir mesaj yazın veya fotoğraf ekleyin!");
+    if (!text && !att) {
+      alert("Lütfen bir mesaj yazın veya dosya/fotoğraf ekleyin!");
       return;
     }
 
@@ -987,25 +1069,39 @@ function setupSupportChat() {
         sendBtn.textContent = "Gönderiliyor...";
       }
 
+      const tenantId = AppState.selectedTenantId && AppState.selectedTenantId !== 'ALL'
+        ? AppState.selectedTenantId
+        : 'default_tenant';
+
       const msgRecord = {
+        tenant_id: tenantId,
         sender_role: 'admin',
         sender_name: 'Patron',
-        message_text: text || '',
-        image_url: img || null,
+        message_text: text || (att ? (att.type === 'document' ? `📎 ${att.name}` : '📷 Fotoğraf') : ''),
+        image_url: att ? att.data : null,
+        attachment_name: att ? att.name : null,
         is_read: false,
         created_at: new Date().toISOString()
       };
 
+      // 1. Önce Admin'in kendi yerel arşivine ekle
+      const localArchive = getAdminChatArchive();
+      const localMsg = { ...msgRecord, id: Date.now() };
+      localArchive.push(localMsg);
+      saveAdminChatArchive(localArchive);
+      AppState.messages = localArchive;
+      renderSupportMessages(true);
+
+      // 2. Supabase'e gönder (Toptancı saha uygulaması oradan çekecek)
       await db.post('support_messages', msgRecord);
 
       // Temizle
       if (textInp) textInp.value = '';
-      AppState.pendingImageBase64 = null;
+      pendingAttachment = null;
       if (fileInp) fileInp.value = '';
       if (previewStrip) previewStrip.style.display = 'none';
 
-      await loadSupportMessages(true);
-      showToast("Mesaj toptancıya iletildi!");
+      showToast("Mesaj ve dosya toptancıya iletildi!");
     } catch (err) {
       alert(`Mesaj gönderme hatası: ${err.message}\n(Supabase'de 'support_messages' tablosunu oluşturduğunuzdan emin olun)`);
     } finally {

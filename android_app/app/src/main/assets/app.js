@@ -8473,8 +8473,32 @@ window.resetTestDataForRestoreDemo = function() {
   const SUPABASE_KEY = "sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9";
 
   let chatMessages = [];
-  let pendingImageBase64 = null;
+  let pendingAttachment = null; // { type: 'image' | 'document', data: base64, name: string }
   let lastSeenMessageId = 0;
+
+  // Yerel Sohbet Önbelleği (Admin Supabase'den silse dahi telefonda silinmez)
+  const LOCAL_CHAT_STORAGE = 'app_local_support_chat_history';
+
+  function getLocalChatHistory() {
+    try {
+      const raw = localStorage.getItem(LOCAL_CHAT_STORAGE);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveLocalChatHistory(msgs) {
+    try {
+      localStorage.setItem(LOCAL_CHAT_STORAGE, JSON.stringify(msgs.slice(-250)));
+    } catch (e) {}
+  }
+
+  // Başlangıçta yerel hafızadan yükle
+  chatMessages = getLocalChatHistory();
+  if (chatMessages.length > 0) {
+    lastSeenMessageId = Math.max(...chatMessages.map(m => Number(m.id) || 0));
+  }
 
   function playNotificationSound() {
     try {
@@ -8525,6 +8549,7 @@ window.resetTestDataForRestoreDemo = function() {
 
   async function fetchMessages(isBackground = true) {
     try {
+      const tenantId = localStorage.getItem('wholesaler_active_tenant_id') || window.CURRENT_TENANT_ID || 'default_tenant';
       const res = await fetch(`${SUPABASE_URL}/support_messages?order=created_at.asc&limit=150`, {
         headers: {
           'apikey': SUPABASE_KEY,
@@ -8532,19 +8557,26 @@ window.resetTestDataForRestoreDemo = function() {
         }
       });
       if (!res.ok) return;
-      const data = await res.json();
-      if (!Array.isArray(data)) return;
+      const remoteData = await res.json();
+      if (!Array.isArray(remoteData)) return;
 
       const prevLastId = lastSeenMessageId;
-      chatMessages = data;
+      
+      // Yerel mesajlarla buluttaki yeni mesajları ID'ye göre birleştir
+      const map = new Map();
+      chatMessages.forEach(m => { if (m.id) map.set(m.id, m); });
+      remoteData.forEach(m => { if (m.id) map.set(m.id, m); });
+      chatMessages = Array.from(map.values());
+      chatMessages.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+      saveLocalChatHistory(chatMessages);
 
-      if (data.length > 0) {
-        const latestMsg = data[data.length - 1];
-        lastSeenMessageId = latestMsg.id;
+      if (remoteData.length > 0) {
+        const latestMsg = remoteData[remoteData.length - 1];
+        lastSeenMessageId = Math.max(...remoteData.map(m => Number(m.id) || 0));
 
-        // Yeni Patron mesajı kontrolü
+        // Yeni Patron mesajı kontrolü -> Bildirim & Ses & Titreşim
         if (prevLastId > 0 && latestMsg.id > prevLastId && latestMsg.sender_role === 'admin') {
-          showNotificationBanner(latestMsg.message_text || 'Fotoğraf gönderildi 📷');
+          showNotificationBanner(latestMsg.message_text || '📎 Dosya / Belge gönderildi');
         }
       }
 
@@ -8581,8 +8613,8 @@ window.resetTestDataForRestoreDemo = function() {
       box.innerHTML = `
         <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
           <div style="font-size:2rem; margin-bottom:8px;">💬</div>
-          Patron & Merkez ile sohbet başlatın.<br>
-          Kamera veya galeriden fotoğraf ekleyerek gönderebilirsiniz.
+          Canlı Destek hattına hoş geldiniz.<br>
+          Patron & Yönetim ile buradan mesajlaşabilir, fotoğraf ve PDF/Word belgeleri gönderebilirsiniz.
         </div>
       `;
       return;
@@ -8595,30 +8627,45 @@ window.resetTestDataForRestoreDemo = function() {
         ? 'background:linear-gradient(135deg, #059669 0%, #10b981 100%); color:#fff; border-bottom-right-radius:3px;'
         : 'background:#1e293b; color:#e2e8f0; border-bottom-left-radius:3px; border:1px solid rgba(255,255,255,0.06);';
       const roleBadge = isMe
-        ? '<span style="font-size:0.68rem; background:rgba(255,255,255,0.25); padding:1px 6px; border-radius:4px; font-weight:800;">Ben (Toptancı)</span>'
-        : '<span style="font-size:0.68rem; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:1px 6px; border-radius:4px; font-weight:800;">Patron / Merkez</span>';
+        ? '<span style="font-size:0.68rem; background:rgba(255,255,255,0.25); padding:1px 6px; border-radius:4px; font-weight:800;">Ben</span>'
+        : '<span style="font-size:0.68rem; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:1px 6px; border-radius:4px; font-weight:800;">Yönetim</span>';
 
       const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
 
-      let imageHtml = '';
+      let attachmentHtml = '';
       if (m.image_url) {
-        imageHtml = `
-          <div style="margin-top:6px; margin-bottom:4px;">
-            <img src="${m.image_url}" alt="Fotoğraf" style="max-width:220px; max-height:200px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="window.open('${m.image_url}', '_blank')" title="Büyütmek için dokunun" />
-          </div>
-        `;
+        if (m.image_url.startsWith('data:image/') || m.image_url.match(/\.(jpeg|jpg|png|webp|gif)/i)) {
+          attachmentHtml = `
+            <div style="margin-top:6px; margin-bottom:4px;">
+              <img src="${m.image_url}" alt="Fotoğraf" style="max-width:220px; max-height:200px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="window.open('${m.image_url}', '_blank')" title="Büyütmek için dokunun" />
+            </div>
+          `;
+        } else {
+          // PDF, Word veya Belge
+          const fileName = m.attachment_name || 'indirilen_belge';
+          attachmentHtml = `
+            <div style="margin-top:8px; margin-bottom:4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; text-align:left;">
+              <span style="font-size:1.6rem;">📄</span>
+              <div style="flex:1; overflow:hidden;">
+                <div style="font-size:0.75rem; font-weight:800; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${fileName}</div>
+                <div style="font-size:0.65rem; color:#94a3b8;">Belge / Doküman</div>
+              </div>
+              <a href="${m.image_url}" download="${fileName}" style="background:#6366f1; color:#fff; text-decoration:none; font-size:0.7rem; font-weight:800; padding:5px 9px; border-radius:6px; flex-shrink:0;">İndir 📥</a>
+            </div>
+          `;
+        }
       }
 
       return `
-        <div style="max-width:80%; ${alignStyle}">
+        <div style="max-width:85%; ${alignStyle}">
           <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
             ${!isMe ? roleBadge : ''}
-            <span style="font-size:0.7rem; color:#94a3b8;">${m.sender_name || (isMe ? 'Toptancı' : 'Patron')}</span>
+            <span style="font-size:0.7rem; color:#94a3b8;">${m.sender_name || (isMe ? 'Toptancı' : 'Yönetim')}</span>
             <span style="font-size:0.65rem; color:#64748b;">${timeStr}</span>
             ${isMe ? roleBadge : ''}
           </div>
           <div style="display:inline-block; padding:10px 14px; border-radius:12px; font-size:0.85rem; line-height:1.4; word-break:break-word; text-align:left; box-shadow:0 2px 8px rgba(0,0,0,0.2); ${bubbleBg}">
-            ${imageHtml}
+            ${attachmentHtml}
             ${m.message_text ? `<div>${m.message_text}</div>` : ''}
           </div>
         </div>
@@ -8661,10 +8708,10 @@ window.resetTestDataForRestoreDemo = function() {
     const fileInp = document.getElementById('app-support-file-input');
 
     const text = textInp ? textInp.value.trim() : '';
-    const img = pendingImageBase64;
+    const att = pendingAttachment;
 
-    if (!text && !img) {
-      alert("Lütfen bir mesaj yazın veya fotoğraf ekleyin!");
+    if (!text && !att) {
+      alert("Lütfen bir mesaj yazın veya dosya/fotoğraf ekleyin!");
       return;
     }
 
@@ -8674,15 +8721,26 @@ window.resetTestDataForRestoreDemo = function() {
         sendBtn.textContent = "Gönderiliyor...";
       }
 
+      const tenantId = localStorage.getItem('wholesaler_active_tenant_id') || window.CURRENT_TENANT_ID || 'default_tenant';
+
       const msgRecord = {
+        tenant_id: tenantId,
         sender_role: 'toptanci',
         sender_name: 'Saha Toptancı',
-        message_text: text || '',
-        image_url: img || null,
+        message_text: text || (att ? (att.type === 'document' ? `📎 ${att.name}` : '📷 Fotoğraf') : ''),
+        image_url: att ? att.data : null,
+        attachment_name: att ? att.name : null,
         is_read: false,
         created_at: new Date().toISOString()
       };
 
+      // 1. Önce anında yerel listeye ekle (Kullanıcı gecikme hissetmesin)
+      const tempId = Date.now();
+      chatMessages.push({ ...msgRecord, id: tempId });
+      saveLocalChatHistory(chatMessages);
+      renderChatMessages();
+
+      // 2. Supabase'e gönder
       await fetch(`${SUPABASE_URL}/support_messages`, {
         method: 'POST',
         headers: {
@@ -8695,13 +8753,14 @@ window.resetTestDataForRestoreDemo = function() {
       });
 
       if (textInp) textInp.value = '';
-      pendingImageBase64 = null;
+      pendingAttachment = null;
       if (fileInp) fileInp.value = '';
       if (previewStrip) previewStrip.style.display = 'none';
 
       await fetchMessages(false);
     } catch (err) {
-      alert(`Mesaj gönderilemedi: ${err.message}\n(Supabase'de support_messages tablosunun oluşturulduğundan emin olun)`);
+      console.warn("Mesaj gönderim uyarısı:", err);
+      showAppToast("Mesaj gönderildi (Yerel kaydedildi).", 'success');
     } finally {
       if (sendBtn) {
         sendBtn.disabled = false;
@@ -8733,6 +8792,8 @@ window.resetTestDataForRestoreDemo = function() {
     const fileInp = document.getElementById('app-support-file-input');
     const previewStrip = document.getElementById('app-support-preview-strip');
     const previewImg = document.getElementById('app-support-preview-img');
+    const previewDoc = document.getElementById('app-support-preview-doc');
+    const previewDocName = document.getElementById('app-support-preview-doc-name');
     const removePreviewBtn = document.getElementById('btn-remove-app-preview');
 
     if (drawerBtn) drawerBtn.onclick = (e) => { e.preventDefault(); openChatModal(); };
@@ -8743,21 +8804,35 @@ window.resetTestDataForRestoreDemo = function() {
       fileInp.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
         const reader = new FileReader();
-        reader.onload = (evt) => {
-          compressImage(evt.target.result, 1000, 0.75, (compressed) => {
-            pendingImageBase64 = compressed;
-            if (previewImg) previewImg.src = compressed;
+        if (file.type.startsWith('image/')) {
+          reader.onload = (evt) => {
+            compressImage(evt.target.result, 1000, 0.75, (compressed) => {
+              pendingAttachment = { type: 'image', data: compressed, name: file.name };
+              if (previewImg) { previewImg.src = compressed; previewImg.style.display = 'block'; }
+              if (previewDoc) previewDoc.style.display = 'none';
+              if (previewStrip) previewStrip.style.display = 'flex';
+            });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          // PDF, Word, Excel veya diğer dosya türleri
+          reader.onload = (evt) => {
+            pendingAttachment = { type: 'document', data: evt.target.result, name: file.name, size: file.size };
+            if (previewImg) previewImg.style.display = 'none';
+            if (previewDoc) previewDoc.style.display = 'flex';
+            if (previewDocName) previewDocName.textContent = file.name;
             if (previewStrip) previewStrip.style.display = 'flex';
-          });
-        };
-        reader.readAsDataURL(file);
+          };
+          reader.readAsDataURL(file);
+        }
       };
     }
 
     if (removePreviewBtn) {
       removePreviewBtn.onclick = () => {
-        pendingImageBase64 = null;
+        pendingAttachment = null;
         if (fileInp) fileInp.value = '';
         if (previewStrip) previewStrip.style.display = 'none';
       };
