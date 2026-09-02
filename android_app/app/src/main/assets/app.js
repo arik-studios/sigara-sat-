@@ -1520,6 +1520,9 @@ function showToast(message, type = 'success') {
   }, 4000);
 }
 
+window.showToast = showToast;
+window.showAppToast = showToast;
+
 function renderDealerDebtsList(dealer) {
   const tbody = document.getElementById('dealer-debts-tbody');
   const countBadge = document.getElementById('detail-debt-count-badge');
@@ -9217,6 +9220,16 @@ window.resetTestDataForRestoreDemo = function() {
   }
 
   const deviceId = getOrCreateDeviceId();
+
+  function showAppToast(msg, type = 'success') {
+    if (typeof showToast === 'function') {
+      showToast(msg, type);
+    } else if (typeof window.showToast === 'function') {
+      window.showToast(msg, type);
+    } else {
+      console.log(`[Toast ${type}]: ${msg}`);
+    }
+  }
 
   function parseTenantMetadata(tenant) {
     let meta = {};
