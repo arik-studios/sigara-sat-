@@ -368,7 +368,54 @@ function initDatabaseAndStorage() {
     dailyHistoryStore = {};
   }
 
+  deduplicateExistingDealers();
   checkDailyCutoff();
+}
+
+function deduplicateExistingDealers() {
+  const seenKeys = new Map();
+  const cleanDealers = [];
+
+  (dealersData || []).forEach(d => {
+    const rawName = (d.name || '').trim().toLowerCase();
+    const rawPhone = (d.phone || '').replace(/\D/g, '');
+    const key = rawName || rawPhone || d.id;
+
+    if (!key) return;
+
+    if (!seenKeys.has(key)) {
+      seenKeys.set(key, d);
+      // Clean up internal duplicate sales if any
+      const uniqueSales = [];
+      (d.sales || []).forEach(s => {
+        const isSaleDup = uniqueSales.some(u => 
+          (u.id && s.id && u.id === s.id) ||
+          (u.date === s.date && u.total === s.total)
+        );
+        if (!isSaleDup) uniqueSales.push(s);
+      });
+      d.sales = uniqueSales;
+      cleanDealers.push(d);
+    } else {
+      // Merge sales and info into existing instance
+      const existing = seenKeys.get(key);
+      (d.sales || []).forEach(s => {
+        const isSaleDup = (existing.sales || []).some(u => 
+          (u.id && s.id && u.id === s.id) ||
+          (u.date === s.date && u.total === s.total)
+        );
+        if (!isSaleDup) {
+          if (!Array.isArray(existing.sales)) existing.sales = [];
+          existing.sales.push(s);
+        }
+      });
+      if (typeof d.totalDebt === 'number' && d.totalDebt > 0) existing.totalDebt = d.totalDebt;
+      if (typeof d.balance === 'number') existing.balance = d.balance;
+    }
+  });
+
+  dealersData = cleanDealers;
+  localStorage.setItem(STORAGE_KEY_DEALERS, JSON.stringify(dealersData));
 }
 
 function saveDealersToStorage() {
@@ -7810,18 +7857,57 @@ function startSystemRestoreAnimationFlow(payload) {
 
   setTimeout(() => {
     if (progressBar) progressBar.style.width = '55%';
-    if (progressStepText) progressStepText.textContent = "🏬 Bayi kartları, sipariş geçmişleri ve borç bakiyeleri yerleştiriliyor...";
+    if (progressStepText) progressStepText.textContent = "🏬 Bayi kartları, sipariş geçmişleri ve borç bakiyeleri tekilleştirilerek yerleştiriliyor...";
     if (progressPercent) progressPercent.textContent = "55%";
 
-    // Restore Dealers
+    // Akıllı Bayi ve Satış Tekilleştirme (Var olan bayileri ve satışları mükerrer ekleme)
     if (payload.data && Array.isArray(payload.data.dealersData)) {
-      dealersData = payload.data.dealersData;
-      localStorage.setItem('toptan_dealers_v3', JSON.stringify(dealersData));
+      const incomingDealers = payload.data.dealersData;
+      const currentList = [...(dealersData || [])];
+
+      incomingDealers.forEach(incDealer => {
+        const incName = (incDealer.name || '').trim().toLowerCase();
+        const incPhone = (incDealer.phone || '').replace(/\D/g, '');
+
+        const existing = currentList.find(d => 
+          (d.id && incDealer.id && d.id === incDealer.id) ||
+          (incName && (d.name || '').trim().toLowerCase() === incName) ||
+          (incPhone && (d.phone || '').replace(/\D/g, '') === incPhone)
+        );
+
+        if (existing) {
+          // Bayi zaten sistemde var! Yeni satışları tekilleştirerek ekle, mevcutları koru
+          const existingSales = Array.isArray(existing.sales) ? existing.sales : [];
+          const incomingSales = Array.isArray(incDealer.sales) ? incDealer.sales : [];
+
+          incomingSales.forEach(incSale => {
+            const isSaleDup = existingSales.some(s => 
+              (s.id && incSale.id && s.id === incSale.id) ||
+              (s.date === incSale.date && s.total === incSale.total)
+            );
+            if (!isSaleDup) {
+              existingSales.push(incSale);
+            }
+          });
+          existing.sales = existingSales;
+          if (typeof incDealer.totalDebt === 'number') existing.totalDebt = incDealer.totalDebt;
+          if (typeof incDealer.balance === 'number') existing.balance = incDealer.balance;
+          if (incDealer.region && !existing.region) existing.region = incDealer.region;
+          if (incDealer.owner && !existing.owner) existing.owner = incDealer.owner;
+          if (incDealer.phone && !existing.phone) existing.phone = incDealer.phone;
+        } else {
+          // Yeni bayi ekle
+          currentList.push({ ...incDealer });
+        }
+      });
+
+      dealersData = currentList;
+      deduplicateExistingDealers();
     }
 
-    // Restore Daily History Store
+    // Restore Daily History Store (Akıllı Birleştirme)
     if (payload.data && payload.data.dailyHistoryStore) {
-      dailyHistoryStore = payload.data.dailyHistoryStore;
+      dailyHistoryStore = { ...(dailyHistoryStore || {}), ...payload.data.dailyHistoryStore };
       localStorage.setItem(STORAGE_KEY_DAILY_HISTORY, JSON.stringify(dailyHistoryStore));
     }
 
@@ -7836,27 +7922,54 @@ function startSystemRestoreAnimationFlow(payload) {
 
   setTimeout(() => {
     if (progressBar) progressBar.style.width = '85%';
-    if (progressStepText) progressStepText.textContent = "📦 Depo stok sayımları, sigara kataloğu ve fiyat yapılandırmaları yükleniyor...";
+    if (progressStepText) progressStepText.textContent = "📦 Depo stokları, sigara kataloğu ve fiyat yapılandırmaları güncelleniyor...";
     if (progressPercent) progressPercent.textContent = "85%";
 
-    // Restore Inventory Stock
+    // Restore Inventory Stock (Doğrudan Set Etme, Üst Üste Ekleme Yapma)
     if (payload.data && payload.data.inventoryStock) {
-      const stockVal = typeof payload.data.inventoryStock === 'string' ? payload.data.inventoryStock : JSON.stringify(payload.data.inventoryStock);
-      localStorage.setItem('toptan_inventory_stock_v1', stockVal);
+      const incStock = typeof payload.data.inventoryStock === 'string' ? JSON.parse(payload.data.inventoryStock) : payload.data.inventoryStock;
+      inventoryStock = { ...inventoryStock, ...incStock };
+      localStorage.setItem(STORAGE_KEY_INVENTORY, JSON.stringify(inventoryStock));
+      localStorage.setItem('toptan_inventory_stock_v1', JSON.stringify(inventoryStock));
     }
 
-    // Restore Cigarettes DB
+    // Restore Cigarettes DB (Tekilleştirme)
     if (payload.data && Array.isArray(payload.data.cigarettesDb) && payload.data.cigarettesDb.length > 0) {
-      CIGARETTES_DB = payload.data.cigarettesDb;
-      localStorage.setItem('toptan_cigarettes_db_v1', JSON.stringify(CIGARETTES_DB));
+      const currentCigs = [...(CIGARETTES_DB || [])];
+      payload.data.cigarettesDb.forEach(incCig => {
+        const existIdx = currentCigs.findIndex(c => 
+          (c.id && incCig.id && c.id === incCig.id) ||
+          (c.name && incCig.name && c.name.trim().toLowerCase() === incCig.name.trim().toLowerCase())
+        );
+        if (existIdx !== -1) {
+          currentCigs[existIdx] = { ...currentCigs[existIdx], ...incCig };
+        } else {
+          currentCigs.push(incCig);
+        }
+      });
+      CIGARETTES_DB = currentCigs;
+      localStorage.setItem(STORAGE_KEY_CIGS, JSON.stringify(CIGARETTES_DB));
     }
 
-    // Restore Custom Prices & Purchases
+    // Restore Custom Prices & Purchases (Tekilleştirme)
     if (payload.data && payload.data.dealerCustomPrices) {
       localStorage.setItem('toptan_dealer_custom_prices_v1', typeof payload.data.dealerCustomPrices === 'string' ? payload.data.dealerCustomPrices : JSON.stringify(payload.data.dealerCustomPrices));
     }
     if (payload.data && payload.data.warehousePurchases) {
-      localStorage.setItem('toptan_warehouse_purchases_v1', typeof payload.data.warehousePurchases === 'string' ? payload.data.warehousePurchases : JSON.stringify(payload.data.warehousePurchases));
+      const incPurchases = typeof payload.data.warehousePurchases === 'string' ? JSON.parse(payload.data.warehousePurchases) : payload.data.warehousePurchases;
+      if (Array.isArray(incPurchases)) {
+        const curPurchases = [...(purchaseHistory || [])];
+        incPurchases.forEach(incP => {
+          const isDup = curPurchases.some(p => 
+            (p.id && incP.id && p.id === incP.id) ||
+            (p.date === incP.date && p.cigName === incP.cigName && p.cartonQty === incP.cartonQty)
+          );
+          if (!isDup) curPurchases.push(incP);
+        });
+        purchaseHistory = curPurchases;
+        localStorage.setItem(STORAGE_KEY_PURCHASE_HISTORY, JSON.stringify(purchaseHistory));
+        localStorage.setItem('toptan_warehouse_purchases_v1', JSON.stringify(purchaseHistory));
+      }
     }
   }, 800);
 
