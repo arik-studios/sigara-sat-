@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Toptan Satış Yönetim Paneli - Admin & Patron Takip Sistemi</title>
+  <link rel="stylesheet" href="admin.css" />
+  <!-- Google Fonts Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ==========================================================================
+       1. DRAWER / SIDEBAR (SOL KENAR ÇUBUĞU)
+       ========================================================================== -->
+  <aside class="admin-drawer" id="admin-drawer">
+    <div class="drawer-header">
+      <div class="brand-icon-box">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="brand-titles">
+        <h1>TOPTANCI PATRON</h1>
+        <span><span class="status-dot"></span> Canlı Supabase Paneli</span>
+      </div>
+    </div>
+
+    <nav class="drawer-menu">
+      <span class="drawer-section-label">Ana Yönetim</span>
+      <a class="nav-link active" data-target="view-overview">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Genel Bakış
+        </div>
+        <span class="nav-badge" id="badge-overview-status">Canlı</span>
+      </a>
+
+      <a class="nav-link" data-target="view-dealers">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Satış Noktaları & Bayiler
+        </div>
+        <span class="nav-badge" id="badge-dealers-count">0</span>
+      </a>
+
+      <a class="nav-link" data-target="view-sales">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          Satışlar & Siparişler
+        </div>
+        <span class="nav-badge" id="badge-sales-count">0</span>
+      </a>
+
+      <a class="nav-link" data-target="view-purchases">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 20h20"/><path d="M4 20V10l4-2v12"/><path d="M8 20V6l4-2v16"/><path d="M12 20V8l4-2v14"/><path d="M16 20V4l4-2v18"/></svg>
+          Fabrika & Depo Alımları
+        </div>
+        <span class="nav-badge" id="badge-purchases-count">0</span>
+      </a>
+
+      <span class="drawer-section-label">Stok & Finans</span>
+      <a class="nav-link" data-target="view-inventory">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          Depo Stok Yönetimi
+        </div>
+        <span class="nav-badge" id="badge-stock-count">0</span>
+      </a>
+
+      <a class="nav-link" data-target="view-finance">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Kasa: Alacaklar & Borçlar
+        </div>
+        <span class="nav-badge" id="badge-finance-count">0</span>
+      </a>
+
+      <a class="nav-link" data-target="view-catalog">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Sigara Kataloğu & Fiyatlar
+        </div>
+        <span class="nav-badge" id="badge-catalog-count">0</span>
+      </a>
+
+      <a class="nav-link" data-target="view-backups">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+          Bulut Yedekleri
+        </div>
+        <span class="nav-badge" id="badge-backups-count">0</span>
+      </a>
+    </nav>
+
+    <div class="drawer-footer">
+      <div class="drawer-user-info">
+        <div>
+          <div class="drawer-user-name">Patron / Yönetici</div>
+          <div class="drawer-user-role">Merkez Kontrol Üssü</div>
+        </div>
+        <a href="index.html" target="_blank" style="color:#6366f1; text-decoration:none; font-size:0.75rem; font-weight:800; display:inline-flex; align-items:center; gap:4px;" title="Saha Satış Arayüzünü Aç">
+          Mobil Ekran ↗
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==========================================================================
+       2. ANA İÇERİK ALANI (MAIN CONTENT)
+       ========================================================================== -->
+  <main class="admin-main">
+    
+    <!-- Üst Kontrol Barı -->
+    <header class="top-app-bar">
+      <div class="top-bar-left">
+        <button class="mobile-menu-btn" id="btn-toggle-drawer" aria-label="Menüyü Aç">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="page-headline">
+          <h2 id="current-view-title">Genel Bakış</h2>
+          <p id="current-view-desc">Tüm toptancı operasyonunun anlık finans ve stok durumu</p>
+        </div>
+      </div>
+
+      <div class="top-bar-right">
+        <div class="cloud-indicator">
+          <span class="status-dot"></span>
+          <span>Supabase Bulut Aktif</span>
+        </div>
+        <div class="cloud-project-tag">
+          Proje: <strong>hwcldjmdnfybaozgxszh</strong>
+        </div>
+        <button type="button" class="btn-refresh-data" id="btn-refresh-all">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Yenile
+        </button>
+      </div>
+    </header>
+
+    <div class="content-body">
+
+      <!-- ======================================================================
+           SAYFA 1: GENEL BAKIŞ (DASHBOARD)
+           ====================================================================== -->
+      <section class="admin-page-view active" id="view-overview">
+        <!-- KPI KARTLARI -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Toplam Satış Noktası</span>
+              <div class="kpi-icon indigo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-dealers-count">0</div>
+            <div class="kpi-subtext" id="kpi-dealers-sub">Kayıtlı Aktif Market & Büfe</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Alınacak Bayi Borcu</span>
+              <div class="kpi-icon rose">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 14 14"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-receivables-val">₺ 0</div>
+            <div class="kpi-subtext" id="kpi-receivables-sub">Sahadan Gelecek Veresiye</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Depo Toplam Stok</span>
+              <div class="kpi-icon emerald">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-stock-val">0 Karton</div>
+            <div class="kpi-subtext" id="kpi-stock-sub">Eksi Stok Açığı: 0 Karton</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Ödenecek Fabrika Borcu</span>
+              <div class="kpi-icon amber">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-payables-val">₺ 0</div>
+            <div class="kpi-subtext" id="kpi-payables-sub">Tedarikçi & Fabrika Vadesi</div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-top">
+              <span class="kpi-label">Toplam Gerçekleşen Ciro</span>
+              <div class="kpi-icon purple">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+              </div>
+            </div>
+            <div class="kpi-value" id="kpi-sales-total">₺ 0</div>
+            <div class="kpi-subtext" id="kpi-profit-sub">Toplam Kâr: ₺ 0</div>
+          </div>
+        </div>
+
+        <!-- 2 SÜTUNLU TABLOLAR -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(460px, 1fr)); gap:20px;">
+          <!-- Son Satışlar -->
+          <div class="admin-card">
+            <div class="card-header-bar">
+              <div class="card-title-group">
+                <h3><span style="color:#6366f1;">●</span> Sahada Yapılan Son Satışlar</h3>
+                <p>Bayilere teslim edilen en güncel siparişler</p>
+              </div>
+              <button class="btn-tbl btn-tbl-primary" onclick="switchView('view-sales')">Tümünü Gör</button>
+            </div>
+            <div class="table-responsive">
+              <table class="admin-data-table">
+                <thead>
+                  <tr>
+                    <th>Fiş No / Tarih</th>
+                    <th>Bayi Adı</th>
+                    <th style="text-align:right;">Tutar</th>
+                    <th style="text-align:right;">Kalan Borç</th>
+                    <th style="text-align:center;">Detay</th>
+                  </tr>
+                </thead>
+                <tbody id="overview-recent-sales-tbody">
+                  <!-- JS Doldurur -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Son Fabrika Alımları -->
+          <div class="admin-card">
+            <div class="card-header-bar">
+              <div class="card-title-group">
+                <h3><span style="color:#10b981;">●</span> Depoya Yapılan Son Alımlar</h3>
+                <p>Fabrikalardan gelen toptan sigara alımları</p>
+              </div>
+              <button class="btn-tbl btn-tbl-emerald" onclick="switchView('view-purchases')">Tümünü Gör</button>
+            </div>
+            <div class="table-responsive">
+              <table class="admin-data-table">
+                <thead>
+                  <tr>
+                    <th>Tarih</th>
+                    <th>Fabrika / Tedarikçi</th>
+                    <th style="text-align:center;">Miktar</th>
+                    <th style="text-align:right;">Maliyet</th>
+                    <th style="text-align:center;">İncele</th>
+                  </tr>
+                </thead>
+                <tbody id="overview-recent-purchases-tbody">
+                  <!-- JS Doldurur -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 2: SATIŞ NOKTALARI & BAYİLER
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-dealers">
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>Satış Noktaları (Bayi Listesi)</h3>
+              <p>Sistemde kayıtlı bayiler, vadeli borç durumları ve iletişim bilgileri</p>
+            </div>
+            <div class="card-actions">
+              <input type="text" class="search-bar-input" id="input-search-dealers" placeholder="Bayi veya yetkili ara..." />
+              <select class="filter-select" id="select-filter-dealer-debt">
+                <option value="all">Tüm Bayiler</option>
+                <option value="debt">Sadece Borçlular</option>
+                <option value="zero">Borcu Olmayanlar</option>
+              </select>
+              <button type="button" class="btn-primary-action" id="btn-add-new-dealer">
+                + Yeni Bayi Ekle
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Bayi Adı</th>
+                  <th>Yetkili</th>
+                  <th>Telefon</th>
+                  <th>Bölge</th>
+                  <th style="text-align:right;">Toplam Borç</th>
+                  <th>Borç Durumu</th>
+                  <th style="text-align:right;">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="dealers-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 3: SATIŞLAR & SİPARİŞLER
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-sales">
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>Tüm Satışlar ve Sipariş Fişleri</h3>
+              <p>Sahada toptancı elemanının veya aracın kestiği tüm satışların geçmişi</p>
+            </div>
+            <div class="card-actions">
+              <input type="text" class="search-bar-input" id="input-search-sales" placeholder="Fiş no veya bayi adı ara..." />
+              <select class="filter-select" id="select-filter-sales-status">
+                <option value="all">Tüm Satışlar</option>
+                <option value="debt">Borç Bırakılanlar</option>
+                <option value="paid">Tamamı Peşin Ödenenler</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Fiş No</th>
+                  <th>Tarih</th>
+                  <th>Bayi Adı</th>
+                  <th>Satılan Sigaralar</th>
+                  <th style="text-align:right;">Toplam Tutar</th>
+                  <th style="text-align:right;">Ödenen</th>
+                  <th style="text-align:right;">Kalan Borç</th>
+                  <th style="text-align:center;">Fiş / Detay</th>
+                </tr>
+              </thead>
+              <tbody id="sales-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 4: FABRİKA & DEPO ALIMLARI
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-purchases">
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>Fabrika ve Toptancı Alımları (Giren Mallar)</h3>
+              <p>Depoya giren her bir parti sigara irsaliyesi, koli/karton adetleri ve maliyetleri</p>
+            </div>
+            <div class="card-actions">
+              <input type="text" class="search-bar-input" id="input-search-purchases" placeholder="İrsaliye no veya fabrika ara..." />
+              <button type="button" class="btn-primary-action" id="btn-add-new-purchase">
+                + Yeni Alım İrsaliyesi Gir
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>İrsaliye No</th>
+                  <th>Fabrika / Tedarikçi</th>
+                  <th>Alınan Sigaralar</th>
+                  <th style="text-align:center;">Toplam Karton</th>
+                  <th style="text-align:right;">Toplam Maliyet</th>
+                  <th style="text-align:center;">İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="purchases-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 5: DEPO STOK YÖNETİMİ
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-inventory">
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>Depo Stok Sayımları & Eksi Stoklar</h3>
+              <p>Mevcut karton ve paket adetleri, eksiye düşen ön satış miktarları</p>
+            </div>
+            <div class="card-actions">
+              <input type="text" class="search-bar-input" id="input-search-stock" placeholder="Sigara adı ara..." />
+              <select class="filter-select" id="select-filter-stock-status">
+                <option value="all">Tüm Stoklar</option>
+                <option value="negative">Sadece Eksi Stoklar (Açık Verenler)</option>
+                <option value="zero">Sıfır Stoklar</option>
+                <option value="positive">Pozitif Stoklar</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Sigara Çeşidi</th>
+                  <th>Marka Grubu</th>
+                  <th style="text-align:right;">Karton Stok</th>
+                  <th style="text-align:right;">Paket (Adet)</th>
+                  <th style="text-align:center;">Durum</th>
+                  <th style="text-align:right;">Stok Değeri</th>
+                  <th style="text-align:center;">Stok Düzenle</th>
+                </tr>
+              </thead>
+              <tbody id="inventory-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 6: KASA: ALACAKLAR & BORÇLAR
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-finance">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(460px, 1fr)); gap:20px;">
+          
+          <!-- Müşteri & Bayi Alacakları -->
+          <div class="admin-card">
+            <div class="card-header-bar">
+              <div class="card-title-group">
+                <h3><span style="color:#f43f5e;">●</span> Müşteri & Bayi Alacakları</h3>
+                <p>Tahsil edilmesi gereken tüm veresiye borçlar ve senetler</p>
+              </div>
+              <button type="button" class="btn-primary-action" id="btn-add-customer-rec">
+                + Manuel Alacak Ekle
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="admin-data-table">
+                <thead>
+                  <tr>
+                    <th>Müşteri / Bayi</th>
+                    <th>Tür / Vade</th>
+                    <th style="text-align:right;">Alacak Tutarı</th>
+                    <th style="text-align:center;">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody id="finance-receivables-tbody">
+                  <!-- JS Doldurur -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tedarikçi & Fabrika Borçları -->
+          <div class="admin-card">
+            <div class="card-header-bar">
+              <div class="card-title-group">
+                <h3><span style="color:#f59e0b;">●</span> Tedarikçi & Fabrika Borçları</h3>
+                <p>Fabrikalara ve ana dağıtıcılara ödenecek borçlar</p>
+              </div>
+              <button type="button" class="btn-primary-action" id="btn-add-payable">
+                + Borç Kaydı Ekle
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table class="admin-data-table">
+                <thead>
+                  <tr>
+                    <th>Tedarikçi / Fabrika</th>
+                    <th>Vade Tarihi</th>
+                    <th style="text-align:right;">Kalan Borç</th>
+                    <th style="text-align:center;">İşlem</th>
+                  </tr>
+                </thead>
+                <tbody id="finance-payables-tbody">
+                  <!-- JS Doldurur -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 7: SİGARA KATALOĞU & FİYATLAR
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-catalog">
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>Sigara Kataloğu ve Toptan Fiyat Listesi</h3>
+              <p>Fabrika alış fiyatları, karton/paket tavsiye satış fiyatları ve kâr marjları</p>
+            </div>
+            <div class="card-actions">
+              <input type="text" class="search-bar-input" id="input-search-catalog" placeholder="Sigara ara..." />
+              <button type="button" class="btn-primary-action" id="btn-add-new-cigarette">
+                + Yeni Sigara Ekle
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Sigara Adı</th>
+                  <th>Grup</th>
+                  <th style="text-align:right;">Fabrika Alış (Karton)</th>
+                  <th style="text-align:right;">Toptan Satış (Karton)</th>
+                  <th style="text-align:right;">Paket Fiyatı</th>
+                  <th style="text-align:right;">Kâr Marjı (Karton)</th>
+                  <th style="text-align:center;">Fiyatı Düzenle</th>
+                </tr>
+              </thead>
+              <tbody id="catalog-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 8: BULUT SİSTEM YEDEKLERİ
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-backups">
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>Supabase Bulut Yedek Arşivi</h3>
+              <p>Cihazdan veya otomatik çıkış anında Supabase'e yüklenen tam sistem JSON snapshot'ları</p>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Yedek Tarihi</th>
+                  <th>Açıklama / Başlık</th>
+                  <th style="text-align:center;">Bayi Sayısı</th>
+                  <th style="text-align:center;">Depo Stok</th>
+                  <th style="text-align:center;">İndir (.json)</th>
+                </tr>
+              </thead>
+              <tbody id="backups-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       MODAL: BAYİ DETAY & DÜZENLEME MODALI
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-dealer-edit">
+    <div class="admin-modal-card">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3 id="m-dealer-title">Bayi Düzenle</h3>
+          <p>Bayi bilgileri ve borç durumunu doğrudan Supabase'e kaydeder</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-dealer-edit">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <input type="hidden" id="m-dealer-id" />
+        <div class="form-group">
+          <label class="form-label">Bayi / Satış Noktası Adı</label>
+          <input type="text" class="form-input" id="m-dealer-name" required />
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Yetkili Kişi</label>
+            <input type="text" class="form-input" id="m-dealer-owner" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Telefon</label>
+            <input type="text" class="form-input" id="m-dealer-phone" />
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Bölge / Mahalle</label>
+            <input type="text" class="form-input" id="m-dealer-region" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Güncel Borç Bakiyesi (₺)</label>
+            <input type="number" class="form-input" id="m-dealer-debt" step="0.01" />
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <h4 style="color:#cbd5e1; font-size:0.85rem; font-weight:800; margin-bottom:8px;">Bu Bayiye Yapılan Son Satışlar</h4>
+          <div id="m-dealer-sales-list" style="background:#060913; border:1px solid var(--border-subtle); border-radius:8px; padding:12px; font-size:0.75rem; max-height:160px; overflow-y:auto;">
+            <!-- JS doldurur -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-dealer-edit">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-dealer-db">Supabase'e Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: STOK DÜZENLEME MODALI
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-stock-edit">
+    <div class="admin-modal-card" style="max-width:480px;">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3 id="m-stock-title">Stok Miktarını Güncelle</h3>
+          <p id="m-stock-cig-name">Sigara adı</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-stock-edit">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <input type="hidden" id="m-stock-cig-id" />
+        <div class="form-group">
+          <label class="form-label">Karton Stok (Eksi stok için negatif değer girilebilir)</label>
+          <input type="number" class="form-input" id="m-stock-cartons" step="1" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Açık Paket (Adet) Stok (0 - 9)</label>
+          <input type="number" class="form-input" id="m-stock-packets" min="0" max="9" value="0" />
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-stock-edit">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-stock-db">Stoku Güncelle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: SİGARA KATALOĞU FİYAT DÜZENLEME
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-catalog-edit">
+    <div class="admin-modal-card" style="max-width:540px;">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3 id="m-cat-title">Sigara Fiyat & Bilgi Düzenle</h3>
+          <p>Toptan ve perakende liste fiyatlarını ayarlar</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-catalog-edit">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <input type="hidden" id="m-cat-id" />
+        <div class="form-group">
+          <label class="form-label">Sigara Adı</label>
+          <input type="text" class="form-input" id="m-cat-name" required />
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Marka (Örn: Marlboro, Winston)</label>
+            <input type="text" class="form-input" id="m-cat-brand" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Grup</label>
+            <select class="form-input" id="m-cat-group">
+              <option value="pm">Philip Morris</option>
+              <option value="jti">JTI Grubu</option>
+              <option value="bat">BAT Grubu</option>
+              <option value="imperial">Imperial Tobacco</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Fabrika Alış Fiyatı (Karton ₺)</label>
+            <input type="number" class="form-input" id="m-cat-buy" step="0.5" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Toptan Satış Fiyatı (Karton ₺)</label>
+            <input type="number" class="form-input" id="m-cat-carton" step="0.5" />
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-catalog-edit">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-cat-db">Kataloğu Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: YENİ FABRİKA ALIM İRSALİYESİ
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-purchase-new">
+    <div class="admin-modal-card">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3>Yeni Fabrika Alım İrsaliyesi</h3>
+          <p>Depoya giren yeni parti sigaraları doğrudan kaydeder</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-purchase-new">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">İrsaliye / Fatura No</label>
+            <input type="text" class="form-input" id="m-new-pur-invoice" placeholder="Örn: IRS-2026-089" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Fabrika / Tedarikçi Adı</label>
+            <input type="text" class="form-input" id="m-new-pur-factory" value="Philip Morris / Ana Dağıtım" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Alınan Sigara</label>
+          <select class="form-input" id="m-new-pur-cig-select"></select>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group">
+            <label class="form-label">Alınan Karton Adedi</label>
+            <input type="number" class="form-input" id="m-new-pur-qty" min="1" value="50" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Birim Alış Fiyatı (Karton ₺)</label>
+            <input type="number" class="form-input" id="m-new-pur-unit-price" step="0.5" />
+          </div>
+        </div>
+        <div style="background:#060913; border:1px solid var(--border-subtle); border-radius:8px; padding:12px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.8rem; color:#94a3b8;">Hesaplanan Toplam İrsaliye Tutarı:</span>
+          <strong id="m-new-pur-total-calc" style="font-size:1.15rem; color:#10b981; font-family:var(--font-mono);">₺ 0</strong>
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-purchase-new">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-purchase-db">İrsaliyeyi Kaydet & Depoya Ekle</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: FİNANS KALEMİ EKLEME
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-finance-item">
+    <div class="admin-modal-card" style="max-width:500px;">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3 id="m-fin-title">Yeni Finans Kaydı</h3>
+          <p>Alacak veya borç kaydı oluşturur</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-finance-item">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <input type="hidden" id="m-fin-type" value="receivable" />
+        <div class="form-group">
+          <label class="form-label" id="m-fin-name-label">Kişi / Kurum Adı</label>
+          <input type="text" class="form-input" id="m-fin-name" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tutar (₺)</label>
+          <input type="number" class="form-input" id="m-fin-amount" step="0.01" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vade Tarihi</label>
+          <input type="date" class="form-input" id="m-fin-date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Açıklama / Not</label>
+          <input type="text" class="form-input" id="m-fin-note" />
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-finance-item">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-finance-db">Kaydet</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
