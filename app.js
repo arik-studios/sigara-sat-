@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupFullReportModule();
   initPayablesModule();
   setupSaleDeletionHandlers();
+  setupBackupRestoreModule();
   renderHomeStockTable();
   renderStockPieChart();
   renderPurchaseHistoryTable();
@@ -7427,6 +7428,406 @@ function downloadCutoffSummaryPDF() {
   } else {
     window.print();
   }
+}
+
+/* ==========================================================================
+   39. TAM SİSTEM VERİ YEDEKLEME & GERİ YÜKLEME MODÜLÜ (BULUT / DOSYA / ANİMASYON)
+   ========================================================================== */
+const BACKUP_STORAGE_KEY_SNAPSHOTS = 'toptan_backup_snapshots_v1';
+
+let selectedBackupPayloadToRestore = null;
+
+function setupBackupRestoreModule() {
+  const drawerBtn = document.getElementById('drawer-btn-backup-restore');
+  const modal = document.getElementById('modal-data-backup-restore');
+  const closeX = document.getElementById('btn-close-backup-restore-modal');
+  const exportBtn = document.getElementById('btn-export-backup-json');
+  const importBtn = document.getElementById('btn-import-backup-json');
+  const fileInput = document.getElementById('input-backup-file');
+  const dropZone = document.getElementById('drop-backup-file-zone');
+  const fileNameDisplay = document.getElementById('selected-backup-file-name');
+  const finishBtn = document.getElementById('btn-finish-restore-flow');
+  const createSnapshotBtn = document.getElementById('btn-create-local-snapshot');
+
+  if (drawerBtn && modal) {
+    drawerBtn.onclick = (e) => {
+      e.preventDefault();
+      openBackupRestoreModal();
+    };
+  }
+
+  if (closeX && modal) {
+    closeX.onclick = () => modal.classList.add('hidden');
+  }
+
+  if (exportBtn) {
+    exportBtn.onclick = () => {
+      downloadSystemBackupFile();
+    };
+  }
+
+  if (dropZone && fileInput) {
+    dropZone.onclick = () => {
+      fileInput.click();
+    };
+  }
+
+  if (fileInput) {
+    fileInput.onchange = (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const parsed = JSON.parse(evt.target.result);
+          if (!parsed || !parsed.data || !Array.isArray(parsed.data.dealersData)) {
+            throw new Error("Geçersiz yedek formatı");
+          }
+          selectedBackupPayloadToRestore = parsed;
+          if (fileNameDisplay) {
+            fileNameDisplay.innerHTML = `✓ <span style="color:#ffffff;">${file.name}</span> (${(file.size / 1024).toFixed(1)} KB)`;
+          }
+          if (importBtn) {
+            importBtn.disabled = false;
+          }
+          if (typeof showToast === 'function') {
+            showToast("Yedek dosyası seçildi ve doğrulandı. Geri yüklemeye hazır.");
+          }
+        } catch (err) {
+          console.error("Yedek okuma hatası:", err);
+          alert("Seçilen dosya geçerli bir toptancı sistem yedek dosyası (.json) değil!");
+          if (fileNameDisplay) {
+            fileNameDisplay.textContent = "📁 Hatalı Dosya! Tekrar Seçin (.json)";
+          }
+          if (importBtn) importBtn.disabled = true;
+          selectedBackupPayloadToRestore = null;
+        }
+      };
+      reader.readAsText(file);
+    };
+  }
+
+  if (importBtn) {
+    importBtn.onclick = () => {
+      if (!selectedBackupPayloadToRestore) {
+        alert("Lütfen önce yüklenecek bir .json yedek dosyası seçiniz!");
+        return;
+      }
+      const confirmAction = confirm("DİKKAT: Mevcut sistem verileriniz seçilen yedek dosyasındaki verilerle değiştirilecektir.\n\nGeri yükleme işlemine devam etmek istiyor musunuz?");
+      if (confirmAction) {
+        startSystemRestoreAnimationFlow(selectedBackupPayloadToRestore);
+      }
+    };
+  }
+
+  if (finishBtn && modal) {
+    finishBtn.onclick = () => {
+      modal.classList.add('hidden');
+      if (typeof showToast === 'function') {
+        showToast("Tüm veriler başarıyla yerleştirildi!");
+      }
+    };
+  }
+
+  if (createSnapshotBtn) {
+    createSnapshotBtn.onclick = () => {
+      createAndSaveLocalSnapshot("Manuel Anlık Sistem Yedeği");
+      renderBackupSnapshotsTable();
+      if (typeof showToast === 'function') {
+        showToast("Cihazda yeni bir anlık sistem yedeği noktası oluşturuldu.");
+      }
+    };
+  }
+}
+
+function openBackupRestoreModal() {
+  const modal = document.getElementById('modal-data-backup-restore');
+  if (!modal) return;
+
+  const mainView = document.getElementById('backup-restore-main-view');
+  const loadingView = document.getElementById('backup-restore-loading-view');
+  const importBtn = document.getElementById('btn-import-backup-json');
+  const fileNameDisplay = document.getElementById('selected-backup-file-name');
+  const dealersBadge = document.getElementById('backup-dealers-count-badge');
+  const stockBadge = document.getElementById('backup-stock-count-badge');
+
+  if (mainView) mainView.classList.remove('hidden');
+  if (loadingView) loadingView.classList.add('hidden');
+  if (importBtn) importBtn.disabled = true;
+  if (fileNameDisplay) fileNameDisplay.textContent = "📁 Yedek Dosyası Seç (.json)";
+  selectedBackupPayloadToRestore = null;
+
+  if (dealersBadge) dealersBadge.textContent = `${(dealersData || []).length} Bayi`;
+
+  // Calculate stock count
+  let totalCartons = 0;
+  try {
+    const rawStock = localStorage.getItem('toptan_inventory_stock_v1');
+    if (rawStock) {
+      const parsedStock = JSON.parse(rawStock);
+      Object.values(parsedStock).forEach(v => {
+        if (typeof v === 'number') totalCartons += v;
+        else if (v && typeof v.stockCartons === 'number') totalCartons += v.stockCartons;
+      });
+    }
+  } catch (e) {}
+
+  if (stockBadge) stockBadge.textContent = `${totalCartons.toLocaleString('tr-TR')} Karton`;
+
+  renderBackupSnapshotsTable();
+
+  modal.classList.remove('hidden');
+}
+
+function createSystemBackupPayload(note = 'Manuel Tam Yedek') {
+  const now = new Date();
+  const dateStr = now.toISOString();
+
+  let inventoryStock = {};
+  try {
+    const rawStock = localStorage.getItem('toptan_inventory_stock_v1');
+    if (rawStock) inventoryStock = JSON.parse(rawStock);
+  } catch (e) {}
+
+  let totalStockCartons = 0;
+  Object.values(inventoryStock).forEach(v => {
+    if (typeof v === 'number') totalStockCartons += v;
+    else if (v && typeof v.stockCartons === 'number') totalStockCartons += v.stockCartons;
+  });
+
+  return {
+    app: "Toptan Satis Yonetim Paneli",
+    schemaVersion: "5.0",
+    exportDate: dateStr,
+    exportTimestamp: now.getTime(),
+    formattedDate: now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    backupNote: note,
+    metadata: {
+      totalDealers: (dealersData || []).length,
+      totalStockCartons: totalStockCartons,
+      activeBusinessDate: getActiveBusinessDateStr(),
+      lastCutoffDate: localStorage.getItem(STORAGE_KEY_LAST_CUTOFF) || ''
+    },
+    data: {
+      dealersData: dealersData || [],
+      cigarettesDb: (typeof CIGARETTES_DB !== 'undefined' ? CIGARETTES_DB : []),
+      dailyHistoryStore: dailyHistoryStore || {},
+      inventoryStock: inventoryStock,
+      activeBusinessDate: localStorage.getItem('toptan_active_business_date') || '',
+      lastCutoff: localStorage.getItem(STORAGE_KEY_LAST_CUTOFF) || '',
+      dealerCustomPrices: localStorage.getItem('toptan_dealer_custom_prices_v1') || null,
+      warehousePurchases: localStorage.getItem('toptan_warehouse_purchases_v1') || null
+    }
+  };
+}
+
+function downloadSystemBackupFile() {
+  const payload = createSystemBackupPayload("İndirilen Tam Sistem Yedeği");
+  const jsonStr = JSON.stringify(payload, null, 2);
+
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+
+  const fileName = `TOPTANCI_SISTEM_YEDEGI_${y}_${m}_${d}_${h}${min}.json`;
+
+  const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  // Also auto-save to snapshots
+  createAndSaveLocalSnapshot(`İndirilen Dosya Yedeği (${fileName})`);
+  renderBackupSnapshotsTable();
+
+  if (typeof showToast === 'function') {
+    showToast(`Tam sistem yedeği (${fileName}) indirildi ve cihaz hafızasına kaydedildi!`);
+  }
+}
+
+function getLocalSnapshots() {
+  try {
+    const raw = localStorage.getItem(BACKUP_STORAGE_KEY_SNAPSHOTS);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [];
+}
+
+function saveLocalSnapshots(list) {
+  try {
+    localStorage.setItem(BACKUP_STORAGE_KEY_SNAPSHOTS, JSON.stringify(list.slice(0, 15)));
+  } catch (e) {}
+}
+
+function createAndSaveLocalSnapshot(note = "Anlık Yedek Noktası") {
+  const payload = createSystemBackupPayload(note);
+  const list = getLocalSnapshots();
+  list.unshift(payload);
+  saveLocalSnapshots(list);
+}
+
+function renderBackupSnapshotsTable() {
+  const tbody = document.getElementById('backup-snapshots-tbody');
+  if (!tbody) return;
+
+  const snapshots = getLocalSnapshots();
+
+  if (snapshots.length === 0) {
+    createAndSaveLocalSnapshot("İlk Otomatik Başlangıç Yedeği");
+    return renderBackupSnapshotsTable();
+  }
+
+  tbody.innerHTML = snapshots.map((item, idx) => {
+    const dealerCount = item.metadata ? item.metadata.totalDealers : (item.data && item.data.dealersData ? item.data.dealersData.length : '--');
+    const stockCount = item.metadata ? item.metadata.totalStockCartons : '--';
+    const dateStr = item.formattedDate || new Date(item.exportTimestamp || Date.now()).toLocaleString('tr-TR');
+    const note = item.backupNote || `Yedek #${idx + 1}`;
+
+    return `
+      <tr>
+        <td><strong style="color:#ffffff;">${dateStr}</strong></td>
+        <td><span style="color:#94a3b8;">${note}</span></td>
+        <td><span style="color:#38bdf8; font-weight:700;">${dealerCount} Bayi</span></td>
+        <td><span style="color:#34d399; font-weight:700;">${stockCount} Karton</span></td>
+        <td style="text-align:right;">
+          <button type="button" class="pill-btn active" style="padding:3px 8px; font-size:0.7rem; background:#10b981; border:none; cursor:pointer;" onclick="restoreSnapshotByIndex(${idx})">
+            ⚡ Geri Yükle
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+window.restoreSnapshotByIndex = function(idx) {
+  const snapshots = getLocalSnapshots();
+  if (snapshots[idx]) {
+    const confirmAction = confirm(`"${snapshots[idx].formattedDate}" tarihli yedeği geri yüklemek istediğinizden emin misiniz?`);
+    if (confirmAction) {
+      startSystemRestoreAnimationFlow(snapshots[idx]);
+    }
+  }
+};
+
+function startSystemRestoreAnimationFlow(payload) {
+  const mainView = document.getElementById('backup-restore-main-view');
+  const loadingView = document.getElementById('backup-restore-loading-view');
+  const progressStage = document.getElementById('restore-progress-stage');
+  const successStage = document.getElementById('restore-success-stage');
+  const progressBar = document.getElementById('restore-progress-bar');
+  const progressStepText = document.getElementById('restore-progress-step-text');
+  const progressPercent = document.getElementById('restore-progress-percent');
+
+  if (mainView) mainView.classList.add('hidden');
+  if (loadingView) loadingView.classList.remove('hidden');
+  if (progressStage) progressStage.classList.remove('hidden');
+  if (successStage) successStage.classList.add('hidden');
+
+  if (progressBar) progressBar.style.width = '25%';
+  if (progressStepText) progressStepText.textContent = "⏳ Yedek dosyası ve veri bütünlüğü doğrulanıyor...";
+  if (progressPercent) progressPercent.textContent = "25%";
+
+  setTimeout(() => {
+    if (progressBar) progressBar.style.width = '55%';
+    if (progressStepText) progressStepText.textContent = "🏬 Bayi kartları, sipariş geçmişleri ve borç bakiyeleri yerleştiriliyor...";
+    if (progressPercent) progressPercent.textContent = "55%";
+
+    // Restore Dealers
+    if (payload.data && Array.isArray(payload.data.dealersData)) {
+      dealersData = payload.data.dealersData;
+      localStorage.setItem('toptan_dealers_v3', JSON.stringify(dealersData));
+    }
+
+    // Restore Daily History Store
+    if (payload.data && payload.data.dailyHistoryStore) {
+      dailyHistoryStore = payload.data.dailyHistoryStore;
+      localStorage.setItem(STORAGE_KEY_DAILY_HISTORY, JSON.stringify(dailyHistoryStore));
+    }
+
+    // Restore Active Date & Cutoff
+    if (payload.data && payload.data.activeBusinessDate) {
+      localStorage.setItem('toptan_active_business_date', payload.data.activeBusinessDate);
+    }
+    if (payload.data && payload.data.lastCutoff) {
+      localStorage.setItem(STORAGE_KEY_LAST_CUTOFF, payload.data.lastCutoff);
+    }
+  }, 400);
+
+  setTimeout(() => {
+    if (progressBar) progressBar.style.width = '85%';
+    if (progressStepText) progressStepText.textContent = "📦 Depo stok sayımları, sigara kataloğu ve fiyat yapılandırmaları yükleniyor...";
+    if (progressPercent) progressPercent.textContent = "85%";
+
+    // Restore Inventory Stock
+    if (payload.data && payload.data.inventoryStock) {
+      const stockVal = typeof payload.data.inventoryStock === 'string' ? payload.data.inventoryStock : JSON.stringify(payload.data.inventoryStock);
+      localStorage.setItem('toptan_inventory_stock_v1', stockVal);
+    }
+
+    // Restore Cigarettes DB
+    if (payload.data && Array.isArray(payload.data.cigarettesDb) && payload.data.cigarettesDb.length > 0) {
+      CIGARETTES_DB = payload.data.cigarettesDb;
+      localStorage.setItem('toptan_cigarettes_db_v1', JSON.stringify(CIGARETTES_DB));
+    }
+
+    // Restore Custom Prices & Purchases
+    if (payload.data && payload.data.dealerCustomPrices) {
+      localStorage.setItem('toptan_dealer_custom_prices_v1', typeof payload.data.dealerCustomPrices === 'string' ? payload.data.dealerCustomPrices : JSON.stringify(payload.data.dealerCustomPrices));
+    }
+    if (payload.data && payload.data.warehousePurchases) {
+      localStorage.setItem('toptan_warehouse_purchases_v1', typeof payload.data.warehousePurchases === 'string' ? payload.data.warehousePurchases : JSON.stringify(payload.data.warehousePurchases));
+    }
+  }, 800);
+
+  setTimeout(() => {
+    if (progressBar) progressBar.style.width = '100%';
+    if (progressStepText) progressStepText.textContent = "✓ Geri yükleme başarıyla tamamlandı!";
+    if (progressPercent) progressPercent.textContent = "100%";
+
+    // Refresh all views and re-render
+    try {
+      initClock();
+      renderHomeStockTable();
+      renderStockPieChart();
+      renderPurchaseHistoryTable();
+      renderOrdersGrid();
+      renderDebtLists();
+      updateDailySalesReports();
+      if (typeof renderDealersManagementTable === 'function') renderDealersManagementTable();
+      if (typeof updateDashboardMetrics === 'function') updateDashboardMetrics();
+      if (typeof renderTopSellingCigarettesList === 'function') renderTopSellingCigarettesList();
+    } catch (err) {
+      console.warn("View re-render notice:", err);
+    }
+
+    setTimeout(() => {
+      if (progressStage) progressStage.classList.add('hidden');
+      if (successStage) successStage.classList.remove('hidden');
+
+      const restoredDealersEl = document.getElementById('restored-dealers-count');
+      const restoredStockEl = document.getElementById('restored-stock-count');
+      const restoredDateEl = document.getElementById('restored-date-label');
+      const restoredHistoryEl = document.getElementById('restored-history-count');
+
+      if (restoredDealersEl) restoredDealersEl.textContent = `${(dealersData || []).length} Satış Noktası`;
+      if (restoredStockEl) {
+        const stockCount = payload.metadata ? payload.metadata.totalStockCartons : 'Tam Depo';
+        restoredStockEl.textContent = `${stockCount} Karton Stok`;
+      }
+      if (restoredDateEl) restoredDateEl.textContent = getActiveBusinessDateStr();
+      if (restoredHistoryEl) restoredHistoryEl.textContent = `${Object.keys(dailyHistoryStore || {}).length} Vardiya Arşivi`;
+    }, 400);
+
+  }, 1300);
 }
 
 

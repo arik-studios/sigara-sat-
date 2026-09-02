@@ -183,6 +183,19 @@
                 </div>
                 <span class="money-badge rose">₺ 194.200</span>
               </a>
+
+              <div class="nav-section-title">VERİ GÜVENLİĞİ & YEDEK</div>
+
+              <a href="#veri-yedekle" class="drawer-item" id="drawer-btn-backup-restore" style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25);">
+                <div class="drawer-icon-box bg-blue">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </div>
+                <div class="drawer-item-text">
+                  <span class="item-title" style="color:#60a5fa;"><svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Verileri Yedekle / Yükle</span>
+                  <span class="item-sub">Tam Sistem Yedeği & Geri Yükleme</span>
+                </div>
+                <span class="item-badge" style="background:rgba(59,130,246,0.2); color:#60a5fa;">Yedekleme</span>
+              </a>
             </nav>
 
             <div class="drawer-footer">
@@ -3137,6 +3150,180 @@
           </button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 38. MODAL: TAM SİSTEM VERİ YEDEKLEME VE GERİ YÜKLEME MODALI -->
+  <div class="modal-overlay hidden" id="modal-data-backup-restore" style="z-index:99999;">
+    <div class="modal-card modal-lg" style="max-width:780px; background:linear-gradient(145deg, #0d1322 0%, #080d1a 100%); border:1px solid rgba(59,130,246,0.35); box-shadow:0 25px 60px rgba(0,0,0,0.9), 0 0 35px rgba(59,130,246,0.15); border-radius:20px;">
+      
+      <!-- Modal Başlığı -->
+      <div class="modal-header" style="border-bottom:1px solid rgba(59,130,246,0.2); padding:16px 20px;">
+        <div class="modal-title-wrap">
+          <div class="modal-icon bg-blue" style="background:rgba(59,130,246,0.2); color:#60a5fa;">
+            <svg class="icon-inline" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" style="color:#60a5fa; font-size:1.15rem; font-weight:900;">Veri Yedekleme & Geri Yükleme</h3>
+            <p class="modal-desc" style="color:#94a3b8; font-size:0.75rem;">Cihaz değişimi veya veri kaybına karşı tüm bayi, satış, borç ve depo verilerini tek tıkla yedekleyin veya geri yükleyin.</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-backup-restore-modal">&times;</button>
+      </div>
+
+      <!-- ANA SEÇENEK GÖRÜNÜMÜ -->
+      <div id="backup-restore-main-view" style="padding:20px;">
+        
+        <!-- Üst 2 Ana Kart: Yedekle vs Yükle -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+          
+          <!-- KART 1: YEDEKLE -->
+          <div style="background:#111827; border:1px solid rgba(59,130,246,0.3); border-radius:14px; padding:18px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden;">
+            <div style="position:absolute; top:0; left:0; width:100%; height:3px; background:linear-gradient(90deg, #3b82f6, #60a5fa);"></div>
+            <div>
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <div style="width:36px; height:36px; border-radius:10px; background:rgba(59,130,246,0.15); display:flex; align-items:center; justify-content:center; color:#60a5fa;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div>
+                  <h4 style="color:#ffffff; font-size:0.95rem; font-weight:800; margin:0;">1. Verileri Yedekle</h4>
+                  <span style="color:#60a5fa; font-size:0.72rem; font-weight:700;">.json Dosyası İndir</span>
+                </div>
+              </div>
+              <p style="color:#94a3b8; font-size:0.76rem; line-height:1.45; margin-bottom:12px;">
+                Tüm bayi hesapları, geçmiş siparişler, veresiye borçlar, depo stokları ve fiyat listelerini güvenli bir yedek dosyası olarak indirir.
+              </p>
+              <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:8px 10px; font-size:0.72rem; color:#cbd5e1; margin-bottom:14px; display:flex; justify-content:space-between;">
+                <span>Yedeklenecek Bayi: <strong style="color:#38bdf8;" id="backup-dealers-count-badge">48 Bayi</strong></span>
+                <span>Depo Stok: <strong style="color:#34d399;" id="backup-stock-count-badge">--</strong></span>
+              </div>
+            </div>
+            <button type="button" class="btn-primary" id="btn-export-backup-json" style="width:100%; justify-content:center; padding:12px; font-weight:800; font-size:0.85rem; background:linear-gradient(135deg, #2563eb, #1d4ed8); border-color:#3b82f6; cursor:pointer;">
+              <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Şimdi Tam Sistem Yedeğini İndir
+            </button>
+          </div>
+
+          <!-- KART 2: GERİ YÜKLE -->
+          <div style="background:#111827; border:1px solid rgba(16,185,129,0.3); border-radius:14px; padding:18px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden;">
+            <div style="position:absolute; top:0; left:0; width:100%; height:3px; background:linear-gradient(90deg, #10b981, #34d399);"></div>
+            <div>
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <div style="width:36px; height:36px; border-radius:10px; background:rgba(16,185,129,0.15); display:flex; align-items:center; justify-content:center; color:#34d399;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div>
+                  <h4 style="color:#ffffff; font-size:0.95rem; font-weight:800; margin:0;">2. Yedekten Geri Yükle</h4>
+                  <span style="color:#34d399; font-size:0.72rem; font-weight:700;">Dosya Aç & Yerleştir</span>
+                </div>
+              </div>
+              <p style="color:#94a3b8; font-size:0.76rem; line-height:1.45; margin-bottom:12px;">
+                Daha önce indirdiğiniz <strong style="color:#ffffff;">.json</strong> yedek dosyasını seçerek tüm verilerinizi eksiksiz ve hatasız olarak geri yükleyin.
+              </p>
+              
+              <input type="file" id="input-backup-file" accept=".json,application/json" style="display:none;" />
+              
+              <!-- Dosya Seçme Alanı -->
+              <div id="drop-backup-file-zone" style="border:1.5px dashed rgba(16,185,129,0.4); border-radius:8px; padding:10px; text-align:center; background:rgba(16,185,129,0.04); cursor:pointer; margin-bottom:14px; transition:all 0.2s;">
+                <div style="color:#34d399; font-size:0.75rem; font-weight:800;" id="selected-backup-file-name">📁 Yedek Dosyası Seç (.json)</div>
+                <div style="color:#64748b; font-size:0.68rem; margin-top:2px;">Tıklayarak cihazınızdan dosya seçin</div>
+              </div>
+            </div>
+
+            <button type="button" class="btn-primary" id="btn-import-backup-json" style="width:100%; justify-content:center; padding:12px; font-weight:800; font-size:0.85rem; background:linear-gradient(135deg, #10b981, #059669); border-color:#34d399; cursor:pointer;" disabled>
+              <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Seçili Yedeği Sisteme Geri Yükle
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Cihazdaki Otomatik / Yerel Yedek Noktaları Tablosu -->
+        <div style="background:#111827; border:1px solid var(--border-subtle); border-radius:14px; padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h4 style="color:#ffffff; font-size:0.85rem; font-weight:800; display:flex; align-items:center; gap:6px;">
+              <svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Cihazdaki Kayıtlı Yedek Noktaları (Tarihe Göre)
+            </h4>
+            <button type="button" class="pill-btn" id="btn-create-local-snapshot" style="padding:4px 10px; font-size:0.72rem; font-weight:700;">+ Anlık Yedek Noktası Oluştur</button>
+          </div>
+          
+          <div style="max-height:180px; overflow-y:auto;">
+            <table class="detail-table" style="width:100%; font-size:0.75rem;">
+              <thead>
+                <tr>
+                  <th>Yedek Tarihi</th>
+                  <th>Yedek Adı / Tipi</th>
+                  <th>Bayi Sayısı</th>
+                  <th>Depo Stok</th>
+                  <th style="text-align:right;">İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="backup-snapshots-tbody">
+                <!-- JS tarafından doldurulur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- YÜKLEME VE GERİ YERLEŞTİRME ANİMASYON EKRANI -->
+      <div id="backup-restore-loading-view" class="hidden" style="padding:40px 24px; text-align:center;">
+        
+        <!-- Yükleme İlerleme Aşaması -->
+        <div id="restore-progress-stage">
+          <div style="width:70px; height:70px; margin:0 auto 20px; border-radius:50%; background:rgba(59,130,246,0.15); border:2px solid #3b82f6; display:flex; align-items:center; justify-content:center; animation:pulse 1.5s infinite;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+
+          <h3 style="color:#ffffff; font-size:1.3rem; font-weight:900; margin-bottom:8px;" id="restore-progress-title">Veriler Geri Yükleniyor...</h3>
+          <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:24px;" id="restore-progress-desc">Tüm bayi kayıtları, sipariş geçmişleri ve depo stokları yerli yerine oturtuluyor.</p>
+          
+          <div style="background:rgba(255,255,255,0.06); border-radius:12px; height:14px; width:100%; overflow:hidden; margin-bottom:12px; border:1px solid rgba(255,255,255,0.12); position:relative;">
+            <div id="restore-progress-bar" style="height:100%; width:15%; background:linear-gradient(90deg, #3b82f6, #10b981); transition:width 0.35s ease; border-radius:12px;"></div>
+          </div>
+          
+          <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.78rem; color:#60a5fa; font-weight:800;">
+            <span id="restore-progress-step-text">⏳ Yedek dosyası doğrulanıyor...</span>
+            <span id="restore-progress-percent">15%</span>
+          </div>
+        </div>
+
+        <!-- Başarı & Tamamlandı Aşaması (Yeşil Tik Rozetli) -->
+        <div id="restore-success-stage" class="hidden">
+          <div class="cutoff-celebration-container">
+            <div class="moon-anim-wrap" style="margin-bottom:16px;">
+              <div class="cutoff-tick-badge" style="width:72px; height:72px;">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+            </div>
+
+            <h3 style="color:#34d399; font-size:1.35rem; font-weight:900; margin-bottom:8px;">
+              TÜM VERİLER BAŞARIYLA GERİ YÜKLENDİ!
+            </h3>
+            <p style="color:#cbd5e1; font-size:0.85rem; margin-bottom:20px;" id="restore-success-detail-text">
+              Bayi kayıtları, satışlar, vadeli borçlar ve depo stokları başarıyla yerleştirildi.
+            </p>
+
+            <div style="background:#111827; border:1px solid rgba(16,185,129,0.3); border-radius:12px; padding:14px; margin-bottom:20px; text-align:left;">
+              <div style="font-size:0.75rem; font-weight:800; color:#34d399; margin-bottom:8px; text-transform:uppercase;">Yüklenen Sistem Özeti:</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:0.78rem; color:#cbd5e1;">
+                <div>• Yüklenen Satış Noktası: <strong style="color:#ffffff;" id="restored-dealers-count">--</strong></div>
+                <div>• Depo Mevcut Sigaralar: <strong style="color:#ffffff;" id="restored-stock-count">--</strong></div>
+                <div>• Aktif Sistem Tarihi: <strong style="color:#38bdf8;" id="restored-date-label">--</strong></div>
+                <div>• Gün Sonu Geçmiş Kaydı: <strong style="color:#fbbf24;" id="restored-history-count">--</strong></div>
+              </div>
+            </div>
+
+            <button type="button" class="btn-primary" id="btn-finish-restore-flow" style="width:100%; max-width:240px; margin:0 auto; padding:12px; font-weight:900; font-size:0.95rem; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border-color:#34d399; color:#ffffff; cursor:pointer;">
+              ✓ Panele Dön
+            </button>
+          </div>
+        </div>
+
+      </div>
+
     </div>
   </div>
 
