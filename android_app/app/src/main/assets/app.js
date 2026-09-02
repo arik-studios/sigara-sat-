@@ -186,6 +186,8 @@ function switchToPage(pageId) {
     checkPayablesDueAlert();
   } else if (pageId === 'receivables') {
     renderDebtLists();
+  } else if (pageId === 'backup') {
+    renderBackupPageData();
   }
 }
 
@@ -7441,89 +7443,101 @@ const BACKUP_STORAGE_KEY_SNAPSHOTS = 'toptan_backup_snapshots_v1';
 let selectedBackupPayloadToRestore = null;
 
 function setupBackupRestoreModule() {
-  const drawerBtn = document.getElementById('drawer-btn-backup-restore');
+  const exportBtnModal = document.getElementById('btn-export-backup-json');
+  const exportBtnPage = document.getElementById('btn-page-export-backup-json');
+
+  const importBtnModal = document.getElementById('btn-import-backup-json');
+  const importBtnPage = document.getElementById('btn-page-import-backup-json');
+
+  const fileInputModal = document.getElementById('input-backup-file');
+  const fileInputPage = document.getElementById('input-page-backup-file');
+
+  const dropZoneModal = document.getElementById('drop-backup-file-zone');
+  const dropZonePage = document.getElementById('drop-page-backup-file-zone');
+
+  const fileNameModal = document.getElementById('selected-backup-file-name');
+  const fileNamePage = document.getElementById('page-selected-backup-file-name');
+
+  const finishBtn = document.getElementById('btn-finish-restore-flow');
+  const snapshotBtnModal = document.getElementById('btn-create-local-snapshot');
+  const snapshotBtnPage = document.getElementById('btn-page-create-local-snapshot');
   const modal = document.getElementById('modal-data-backup-restore');
   const closeX = document.getElementById('btn-close-backup-restore-modal');
-  const exportBtn = document.getElementById('btn-export-backup-json');
-  const importBtn = document.getElementById('btn-import-backup-json');
-  const fileInput = document.getElementById('input-backup-file');
-  const dropZone = document.getElementById('drop-backup-file-zone');
-  const fileNameDisplay = document.getElementById('selected-backup-file-name');
-  const finishBtn = document.getElementById('btn-finish-restore-flow');
-  const createSnapshotBtn = document.getElementById('btn-create-local-snapshot');
-
-  if (drawerBtn && modal) {
-    drawerBtn.onclick = (e) => {
-      e.preventDefault();
-      openBackupRestoreModal();
-    };
-  }
 
   if (closeX && modal) {
     closeX.onclick = () => modal.classList.add('hidden');
   }
 
-  if (exportBtn) {
-    exportBtn.onclick = () => {
-      downloadSystemBackupFile();
-    };
+  // Handle export buttons
+  const handleExport = () => {
+    downloadSystemBackupFile();
+    renderBackupPageData();
+  };
+  if (exportBtnModal) exportBtnModal.onclick = handleExport;
+  if (exportBtnPage) exportBtnPage.onclick = handleExport;
+
+  // Handle dropzone click to open file dialog
+  if (dropZoneModal && fileInputModal) {
+    dropZoneModal.onclick = () => fileInputModal.click();
+  }
+  if (dropZonePage && fileInputPage) {
+    dropZonePage.onclick = () => fileInputPage.click();
   }
 
-  if (dropZone && fileInput) {
-    dropZone.onclick = () => {
-      fileInput.click();
-    };
-  }
-
-  if (fileInput) {
-    fileInput.onchange = (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const parsed = JSON.parse(evt.target.result);
-          if (!parsed || !parsed.data || !Array.isArray(parsed.data.dealersData)) {
-            throw new Error("Geçersiz yedek formatı");
-          }
-          selectedBackupPayloadToRestore = parsed;
-          if (fileNameDisplay) {
-            fileNameDisplay.innerHTML = `✓ <span style="color:#ffffff;">${file.name}</span> (${(file.size / 1024).toFixed(1)} KB)`;
-          }
-          if (importBtn) {
-            importBtn.disabled = false;
-          }
-          if (typeof showToast === 'function') {
-            showToast("Yedek dosyası seçildi ve doğrulandı. Geri yüklemeye hazır.");
-          }
-        } catch (err) {
-          console.error("Yedek okuma hatası:", err);
-          alert("Seçilen dosya geçerli bir toptancı sistem yedek dosyası (.json) değil!");
-          if (fileNameDisplay) {
-            fileNameDisplay.textContent = "📁 Hatalı Dosya! Tekrar Seçin (.json)";
-          }
-          if (importBtn) importBtn.disabled = true;
-          selectedBackupPayloadToRestore = null;
+  // Handle file selection
+  const handleFileSelect = (file, fileNameEl, importBtnEl) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target.result);
+        if (!parsed || !parsed.data || !Array.isArray(parsed.data.dealersData)) {
+          throw new Error("Geçersiz yedek dosyası formatı");
         }
-      };
-      reader.readAsText(file);
+        selectedBackupPayloadToRestore = parsed;
+        if (fileNameEl) {
+          fileNameEl.innerHTML = `✓ <span style="color:#ffffff;">${file.name}</span> (${(file.size / 1024).toFixed(1)} KB)`;
+        }
+        if (importBtnEl) importBtnEl.disabled = false;
+        if (importBtnModal) importBtnModal.disabled = false;
+        if (importBtnPage) importBtnPage.disabled = false;
+        if (typeof showToast === 'function') {
+          showToast("Yedek dosyası seçildi ve doğrulandı. Geri yüklemeye hazır.");
+        }
+      } catch (err) {
+        console.error("Yedek okuma hatası:", err);
+        alert("Seçilen dosya geçerli bir toptancı sistem yedek dosyası (.json) değil!");
+        if (fileNameEl) fileNameEl.textContent = "📁 Hatalı Dosya! Tekrar Seçin (.json)";
+        if (importBtnEl) importBtnEl.disabled = true;
+        selectedBackupPayloadToRestore = null;
+      }
     };
+    reader.readAsText(file);
+  };
+
+  if (fileInputModal) {
+    fileInputModal.onchange = (e) => handleFileSelect(e.target.files && e.target.files[0], fileNameModal, importBtnModal);
+  }
+  if (fileInputPage) {
+    fileInputPage.onchange = (e) => handleFileSelect(e.target.files && e.target.files[0], fileNamePage, importBtnPage);
   }
 
-  if (importBtn) {
-    importBtn.onclick = () => {
-      if (!selectedBackupPayloadToRestore) {
-        alert("Lütfen önce yüklenecek bir .json yedek dosyası seçiniz!");
-        return;
-      }
-      const confirmAction = confirm("DİKKAT: Mevcut sistem verileriniz seçilen yedek dosyasındaki verilerle değiştirilecektir.\n\nGeri yükleme işlemine devam etmek istiyor musunuz?");
-      if (confirmAction) {
-        startSystemRestoreAnimationFlow(selectedBackupPayloadToRestore);
-      }
-    };
-  }
+  // Handle import/restore buttons
+  const handleImport = () => {
+    if (!selectedBackupPayloadToRestore) {
+      alert("Lütfen önce yüklenecek bir .json yedek dosyası seçiniz!");
+      return;
+    }
+    const confirmAction = confirm("DİKKAT: Mevcut sistem verileriniz seçilen yedek dosyasındaki verilerle değiştirilecektir.\n\nGeri yükleme işlemine devam etmek istiyor musunuz?");
+    if (confirmAction) {
+      if (modal) modal.classList.remove('hidden');
+      startSystemRestoreAnimationFlow(selectedBackupPayloadToRestore);
+    }
+  };
+  if (importBtnModal) importBtnModal.onclick = handleImport;
+  if (importBtnPage) importBtnPage.onclick = handleImport;
 
+  // Handle finish flow button
   if (finishBtn && modal) {
     finishBtn.onclick = () => {
       modal.classList.add('hidden');
@@ -7533,14 +7547,72 @@ function setupBackupRestoreModule() {
     };
   }
 
-  if (createSnapshotBtn) {
-    createSnapshotBtn.onclick = () => {
-      createAndSaveLocalSnapshot("Manuel Anlık Sistem Yedeği");
-      renderBackupSnapshotsTable();
-      if (typeof showToast === 'function') {
-        showToast("Cihazda yeni bir anlık sistem yedeği noktası oluşturuldu.");
-      }
-    };
+  // Handle snapshot creation
+  const handleSnapshot = () => {
+    createAndSaveLocalSnapshot("Manuel Anlık Sistem Yedeği");
+    renderBackupSnapshotsTable();
+    renderBackupPageData();
+    if (typeof showToast === 'function') {
+      showToast("Cihazda yeni bir anlık sistem yedeği noktası oluşturuldu.");
+    }
+  };
+  if (snapshotBtnModal) snapshotBtnModal.onclick = handleSnapshot;
+  if (snapshotBtnPage) snapshotBtnPage.onclick = handleSnapshot;
+}
+
+function renderBackupPageData() {
+  const dealersEl = document.getElementById('page-backup-dealers-count');
+  const stockEl = document.getElementById('page-backup-stock-count');
+  const dateEl = document.getElementById('page-backup-date-label');
+  const countLabel = document.getElementById('page-snapshots-count-label');
+  const tbody = document.getElementById('page-backup-snapshots-tbody');
+
+  if (dealersEl) dealersEl.textContent = `${(dealersData || []).length} Bayi`;
+  if (dateEl) dateEl.textContent = getActiveBusinessDateStr();
+
+  let totalCartons = 0;
+  try {
+    const rawStock = localStorage.getItem('toptan_inventory_stock_v1');
+    if (rawStock) {
+      const parsedStock = JSON.parse(rawStock);
+      Object.values(parsedStock).forEach(v => {
+        if (typeof v === 'number') totalCartons += v;
+        else if (v && typeof v.stockCartons === 'number') totalCartons += v.stockCartons;
+      });
+    }
+  } catch (e) {}
+
+  if (stockEl) stockEl.textContent = `${totalCartons.toLocaleString('tr-TR')} Karton`;
+
+  const snapshots = getLocalSnapshots();
+  if (snapshots.length === 0) {
+    createAndSaveLocalSnapshot("İlk Otomatik Başlangıç Yedeği");
+    return renderBackupPageData();
+  }
+
+  if (countLabel) countLabel.textContent = `${snapshots.length} Kayıtlı Yedek`;
+
+  if (tbody) {
+    tbody.innerHTML = snapshots.map((item, idx) => {
+      const dealerCount = item.metadata ? item.metadata.totalDealers : (item.data && item.data.dealersData ? item.data.dealersData.length : '--');
+      const stockCount = item.metadata ? item.metadata.totalStockCartons : '--';
+      const dateStr = item.formattedDate || new Date(item.exportTimestamp || Date.now()).toLocaleString('tr-TR');
+      const note = item.backupNote || `Yedek #${idx + 1}`;
+
+      return `
+        <tr>
+          <td><strong style="color:#ffffff;">${dateStr}</strong></td>
+          <td><span style="color:#94a3b8;">${note}</span></td>
+          <td><span style="color:#38bdf8; font-weight:700;">${dealerCount} Bayi</span></td>
+          <td><span style="color:#34d399; font-weight:700;">${stockCount} Karton</span></td>
+          <td style="text-align:right;">
+            <button type="button" class="pill-btn active" style="padding:4px 10px; font-size:0.75rem; background:#10b981; border:none; cursor:pointer;" onclick="restoreSnapshotByIndex(${idx})">
+              ⚡ Geri Yükle
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 }
 
