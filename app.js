@@ -7824,7 +7824,9 @@ function createSystemBackupPayload(note = 'Manuel Tam Yedek') {
       activeBusinessDate: localStorage.getItem('toptan_active_business_date') || '',
       lastCutoff: localStorage.getItem(STORAGE_KEY_LAST_CUTOFF) || '',
       dealerCustomPrices: localStorage.getItem('toptan_dealer_custom_prices_v1') || null,
-      warehousePurchases: localStorage.getItem('toptan_warehouse_purchases_v1') || null
+      warehousePurchases: localStorage.getItem('toptan_warehouse_purchases_v1') || JSON.parse(localStorage.getItem('toptan_purchase_history_v4') || '[]'),
+      customerReceivables: JSON.parse(localStorage.getItem('sat_panel_customer_receivables') || '[]'),
+      payablesData: JSON.parse(localStorage.getItem('sat_panel_payables') || '[]')
     }
   };
 }
@@ -8058,6 +8060,50 @@ function startSystemRestoreAnimationFlow(payload) {
         localStorage.setItem(STORAGE_KEY_PURCHASE_HISTORY, JSON.stringify(purchaseHistory));
         localStorage.setItem('toptan_warehouse_purchases_v1', JSON.stringify(purchaseHistory));
       }
+    }
+
+    // Restore Customer Receivables (Müşteri Alacakları & Senetler)
+    if (payload.data && Array.isArray(payload.data.customerReceivables)) {
+      const incRecs = payload.data.customerReceivables;
+      let currentRecs = [];
+      try {
+        currentRecs = JSON.parse(localStorage.getItem('sat_panel_customer_receivables') || '[]');
+      } catch (e) {}
+
+      incRecs.forEach(incR => {
+        const existIdx = currentRecs.findIndex(r => 
+          (r.id && incR.id && r.id === incR.id) ||
+          (r.customerName && incR.customerName && r.customerName.trim().toLowerCase() === incR.customerName.trim().toLowerCase())
+        );
+        if (existIdx !== -1) {
+          currentRecs[existIdx] = { ...currentRecs[existIdx], ...incR };
+        } else {
+          currentRecs.push(incR);
+        }
+      });
+      localStorage.setItem('sat_panel_customer_receivables', JSON.stringify(currentRecs));
+    }
+
+    // Restore Payables (Tedarikçi Borçları)
+    if (payload.data && Array.isArray(payload.data.payablesData)) {
+      const incPays = payload.data.payablesData;
+      let currentPays = [];
+      try {
+        currentPays = JSON.parse(localStorage.getItem('sat_panel_payables') || '[]');
+      } catch (e) {}
+
+      incPays.forEach(incP => {
+        const existIdx = currentPays.findIndex(p => 
+          (p.id && incP.id && p.id === incP.id) ||
+          (p.supplierName && incP.supplierName && p.supplierName.trim().toLowerCase() === incP.supplierName.trim().toLowerCase())
+        );
+        if (existIdx !== -1) {
+          currentPays[existIdx] = { ...currentPays[existIdx], ...incP };
+        } else {
+          currentPays.push(incP);
+        }
+      });
+      localStorage.setItem('sat_panel_payables', JSON.stringify(currentPays));
     }
   }, 800);
 

@@ -1,7 +1,6 @@
 -- ============================================================================
--- TOPTANCI SATIŞ VE YÖNETİM SİSTEMİ - SUPABASE VERİTABANI TABLOLARI & RLS
+-- TOPTANCI SATIŞ VE YÖNETİM SİSTEMİ - SUPABASE VERİTABANI TABLOLARI & RLS (TAM SÜRÜM)
 -- ============================================================================
--- Bu SQL kodunu Supabase Dashboard -> SQL Editor -> New Query alanına yapıştırıp "RUN" butonuna basınız.
 
 -- 1. SİSTEM TAM YEDEKLERİ TABLOSU
 CREATE TABLE IF NOT EXISTS public.system_backups (
@@ -19,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.system_backups (
     payload_json JSONB NOT NULL
 );
 
--- 2. BAYİLER & SATIŞ NOKTALARI TABLOSU
+-- 2. BAYİLER & SATIŞ NOKTALARI TABLOSU (Satış ve Ara Ödeme Makbuz Geçmişiyle Birlikte)
 CREATE TABLE IF NOT EXISTS public.dealers (
     dealer_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -30,11 +29,25 @@ CREATE TABLE IF NOT EXISTS public.dealers (
     balance NUMERIC DEFAULT 0,
     custom_prices JSONB DEFAULT '{}'::jsonb,
     sales_history JSONB DEFAULT '[]'::jsonb,
+    payment_history JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. DEPO STOKLARI TABLOSU
+-- 3. MÜŞTERİ ALACAKLARI & SENETLER TABLOSU
+CREATE TABLE IF NOT EXISTS public.customer_receivables (
+    rec_id TEXT PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    phone TEXT,
+    total_debt NUMERIC DEFAULT 0,
+    remaining_debt NUMERIC DEFAULT 0,
+    due_date TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. DEPO STOKLARI TABLOSU
 CREATE TABLE IF NOT EXISTS public.inventory_stock (
     cigarette_id TEXT PRIMARY KEY,
     stock_cartons INT DEFAULT 0,
@@ -42,7 +55,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_stock (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 4. SİGARA KATALOĞU VE FİYAT LİSTESİ TABLOSU
+-- 5. SİGARA KATALOĞU VE FİYAT LİSTESİ TABLOSU
 CREATE TABLE IF NOT EXISTS public.cigarettes_catalog (
     cig_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -56,7 +69,7 @@ CREATE TABLE IF NOT EXISTS public.cigarettes_catalog (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. GÜN SONU & VARDİYA ARŞİVİ TABLOSU
+-- 6. GÜN SONU & VARDİYA ARŞİVİ TABLOSU
 CREATE TABLE IF NOT EXISTS public.daily_history (
     date_key TEXT PRIMARY KEY,
     date_str TEXT,
@@ -67,7 +80,7 @@ CREATE TABLE IF NOT EXISTS public.daily_history (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. FABRİKA ALIMLARI TABLOSU
+-- 7. FABRİKA ALIM İRSALİYELERİ TABLOSU
 CREATE TABLE IF NOT EXISTS public.warehouse_purchases (
     purchase_id TEXT PRIMARY KEY,
     date TEXT,
@@ -81,7 +94,7 @@ CREATE TABLE IF NOT EXISTS public.warehouse_purchases (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. TEDARİKÇİ BORÇLARI TABLOSU
+-- 8. TEDARİKÇİ VE FABRİKA BORÇLARI TABLOSU
 CREATE TABLE IF NOT EXISTS public.payables (
     payable_id TEXT PRIMARY KEY,
     supplier_name TEXT NOT NULL,
@@ -93,22 +106,25 @@ CREATE TABLE IF NOT EXISTS public.payables (
 );
 
 -- ============================================================================
--- GÜVENLİK (ROW LEVEL SECURITY - RLS) & HERKESE AÇIK ERİŞİM İZNİ
+-- GÜVENLİK (ROW LEVEL SECURITY - RLS) & OKUMA/YAZMA İZİNLERİ
 -- ============================================================================
 ALTER TABLE public.system_backups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dealers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_receivables ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_stock ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cigarettes_catalog ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.warehouse_purchases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payables ENABLE ROW LEVEL SECURITY;
 
--- Anon / Publishable key ile okuma & yazma izinleri
 DROP POLICY IF EXISTS "Allow public all for system_backups" ON public.system_backups;
 CREATE POLICY "Allow public all for system_backups" ON public.system_backups FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public all for dealers" ON public.dealers;
 CREATE POLICY "Allow public all for dealers" ON public.dealers FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow public all for customer_receivables" ON public.customer_receivables;
+CREATE POLICY "Allow public all for customer_receivables" ON public.customer_receivables FOR ALL USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Allow public all for inventory_stock" ON public.inventory_stock;
 CREATE POLICY "Allow public all for inventory_stock" ON public.inventory_stock FOR ALL USING (true) WITH CHECK (true);

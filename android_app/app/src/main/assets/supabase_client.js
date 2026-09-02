@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * SUPABASE BULUT VERİTABANI ENTEGRASYONU & MODÜLER SINIF SERVİSLERİ
+ * SUPABASE BULUT VERİTABANI ENTEGRASYONU & MODÜLER SINIF SERVİSLERİ (TAM SÜRÜM)
  * ============================================================================
  * Proje URL: https://hwcldjmdnfybaozgxszh.supabase.co
  * API Key: sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9
@@ -84,7 +84,7 @@ class SystemBackupService {
   static async uploadBackup(payload) {
     const record = {
       app_name: payload.app || "Toptan Satis Yonetim Paneli",
-      schema_version: payload.schemaVersion || "5.0",
+      schema_version: payload.schemaVersion || "6.0",
       export_date: payload.exportDate || new Date().toISOString(),
       export_timestamp: payload.exportTimestamp || Date.now(),
       formatted_date: payload.formattedDate || new Date().toLocaleString('tr-TR'),
@@ -109,11 +109,6 @@ class SystemBackupService {
   static async fetchAllBackups() {
     return await supabaseClient.get('system_backups', 'select=id,created_at,formatted_date,backup_note,total_dealers,total_stock_cartons,export_timestamp&order=export_timestamp.desc&limit=50');
   }
-
-  static async fetchBackupById(id) {
-    const result = await supabaseClient.get('system_backups', `id=eq.${id}&limit=1`);
-    return Array.isArray(result) && result[0] ? result[0].payload_json : null;
-  }
 }
 
 /* ============================================================================
@@ -133,6 +128,7 @@ class DealersService {
       balance: typeof d.balance === 'number' ? d.balance : 0,
       custom_prices: d.customPrices || {},
       sales_history: d.sales || [],
+      payment_history: d.payments || d.paymentHistory || [],
       updated_at: new Date().toISOString()
     }));
 
@@ -151,13 +147,120 @@ class DealersService {
       totalDebt: r.total_debt,
       balance: r.balance,
       customPrices: r.custom_prices || {},
-      sales: r.sales_history || []
+      sales: r.sales_history || [],
+      payments: r.payment_history || []
     }));
   }
 }
 
 /* ============================================================================
-   3. DEPO STOK SERVİSİ (InventoryStockService)
+   3. MÜŞTERİ ALACAKLARI & SENETLER SERVİSİ (CustomerReceivablesService)
+   ============================================================================ */
+class CustomerReceivablesService {
+  static async syncReceivables(receivablesList) {
+    if (!Array.isArray(receivablesList) || receivablesList.length === 0) return [];
+
+    const records = receivablesList.map(r => ({
+      rec_id: r.id || `REC-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      customer_name: r.customerName || r.name || '',
+      phone: r.phone || '',
+      total_debt: r.totalDebt || r.total || 0,
+      remaining_debt: typeof r.remainingDebt === 'number' ? r.remainingDebt : (r.remaining || r.totalDebt || 0),
+      due_date: r.dueDate || '',
+      notes: r.notes || r.note || '',
+      updated_at: new Date().toISOString()
+    }));
+
+    return await supabaseClient.post('customer_receivables', records, true);
+  }
+
+  static async fetchReceivables() {
+    const rows = await supabaseClient.get('customer_receivables', 'select=*&order=due_date.asc');
+    if (!Array.isArray(rows)) return [];
+    return rows.map(r => ({
+      id: r.rec_id,
+      customerName: r.customer_name,
+      phone: r.phone,
+      totalDebt: r.total_debt,
+      remainingDebt: r.remaining_debt,
+      dueDate: r.due_date,
+      notes: r.notes
+    }));
+  }
+}
+
+/* ============================================================================
+   4. TEDARİKÇİ & FABRİKA BORÇLARI SERVİSİ (PayablesService)
+   ============================================================================ */
+class PayablesService {
+  static async syncPayables(payablesList) {
+    if (!Array.isArray(payablesList) || payablesList.length === 0) return [];
+    const records = payablesList.map(p => ({
+      payable_id: p.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      supplier_name: p.supplierName || p.name || '',
+      total_amount: p.totalAmount || p.amount || 0,
+      remaining_amount: typeof p.remainingAmount === 'number' ? p.remainingAmount : (p.remaining || p.totalAmount || 0),
+      due_date: p.dueDate || '',
+      note: p.note || '',
+      updated_at: new Date().toISOString()
+    }));
+    return await supabaseClient.post('payables', records, true);
+  }
+
+  static async fetchPayables() {
+    const rows = await supabaseClient.get('payables', 'select=*&order=due_date.asc');
+    if (!Array.isArray(rows)) return [];
+    return rows.map(r => ({
+      id: r.payable_id,
+      supplierName: r.supplier_name,
+      totalAmount: r.total_amount,
+      remainingAmount: r.remaining_amount,
+      dueDate: r.due_date,
+      note: r.note
+    }));
+  }
+}
+
+/* ============================================================================
+   5. FABRİKA ALIM İRSALİYELERİ SERVİSİ (WarehousePurchasesService)
+   ============================================================================ */
+class WarehousePurchasesService {
+  static async syncPurchases(purchasesList) {
+    if (!Array.isArray(purchasesList) || purchasesList.length === 0) return [];
+    const records = purchasesList.map(p => ({
+      purchase_id: p.id || `PUR-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      date: p.date || new Date().toISOString(),
+      factory_name: p.factoryName || p.supplier || 'Ana Fabrika',
+      cig_id: p.cigId || '',
+      cig_name: p.cigName || '',
+      carton_qty: p.cartonQty || 0,
+      unit_buy_price: p.unitBuyPrice || 0,
+      total_cost: p.totalCost || 0,
+      invoice_no: p.invoiceNo || '',
+      created_at: new Date().toISOString()
+    }));
+    return await supabaseClient.post('warehouse_purchases', records, true);
+  }
+
+  static async fetchPurchases() {
+    const rows = await supabaseClient.get('warehouse_purchases', 'select=*&order=date.desc');
+    if (!Array.isArray(rows)) return [];
+    return rows.map(r => ({
+      id: r.purchase_id,
+      date: r.date,
+      factoryName: r.factory_name,
+      cigId: r.cig_id,
+      cigName: r.cig_name,
+      cartonQty: r.carton_qty,
+      unitBuyPrice: r.unit_buy_price,
+      totalCost: r.total_cost,
+      invoiceNo: r.invoice_no
+    }));
+  }
+}
+
+/* ============================================================================
+   6. DEPO STOK SERVİSİ (InventoryStockService)
    ============================================================================ */
 class InventoryStockService {
   static async syncStock(stockMap) {
@@ -197,7 +300,7 @@ class InventoryStockService {
 }
 
 /* ============================================================================
-   4. SİGARA KATALOĞU & FİYAT LİSTESİ SERVİSİ (CigarettesCatalogService)
+   7. SİGARA KATALOĞU VE FİYAT SERVİSİ (CigarettesCatalogService)
    ============================================================================ */
 class CigarettesCatalogService {
   static async syncCatalog(cigsList) {
@@ -235,7 +338,7 @@ class CigarettesCatalogService {
 }
 
 /* ============================================================================
-   5. GÜN SONU & VARDİYA ARŞİVİ SERVİSİ (DailyHistoryService)
+   8. GÜN SONU & VARDİYA ARŞİVİ SERVİSİ (DailyHistoryService)
    ============================================================================ */
 class DailyHistoryService {
   static async syncDailyHistory(historyMap) {
@@ -270,77 +373,14 @@ class DailyHistoryService {
   }
 }
 
-/* ============================================================================
-   6. FABRİKA TOPTAN ALIMLARI & TEDARİKÇİ BORÇLARI SERVİSİ (PurchasesAndPayablesService)
-   ============================================================================ */
-class PurchasesAndPayablesService {
-  static async syncWarehousePurchases(purchasesList) {
-    if (!Array.isArray(purchasesList) || purchasesList.length === 0) return [];
-    const records = purchasesList.map(p => ({
-      purchase_id: p.id || `PUR-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      date: p.date,
-      factory_name: p.factoryName || p.supplier || 'Ana Fabrika',
-      cig_id: p.cigId,
-      cig_name: p.cigName,
-      carton_qty: p.cartonQty,
-      unit_buy_price: p.unitBuyPrice,
-      total_cost: p.totalCost,
-      invoice_no: p.invoiceNo || '',
-      created_at: new Date().toISOString()
-    }));
-    return await supabaseClient.post('warehouse_purchases', records, true);
-  }
-
-  static async fetchWarehousePurchases() {
-    const rows = await supabaseClient.get('warehouse_purchases', 'select=*&order=date.desc');
-    if (!Array.isArray(rows)) return [];
-    return rows.map(r => ({
-      id: r.purchase_id,
-      date: r.date,
-      factoryName: r.factory_name,
-      cigId: r.cig_id,
-      cigName: r.cig_name,
-      cartonQty: r.carton_qty,
-      unitBuyPrice: r.unit_buy_price,
-      totalCost: r.total_cost,
-      invoiceNo: r.invoice_no
-    }));
-  }
-
-  static async syncPayables(payablesList) {
-    if (!Array.isArray(payablesList) || payablesList.length === 0) return [];
-    const records = payablesList.map(p => ({
-      payable_id: p.id || `PAY-${Date.now()}`,
-      supplier_name: p.supplierName || p.name || '',
-      total_amount: p.totalAmount || p.amount || 0,
-      remaining_amount: p.remainingAmount || p.remaining || 0,
-      due_date: p.dueDate || '',
-      note: p.note || '',
-      updated_at: new Date().toISOString()
-    }));
-    return await supabaseClient.post('payables', records, true);
-  }
-
-  static async fetchPayables() {
-    const rows = await supabaseClient.get('payables', 'select=*&order=due_date.asc');
-    if (!Array.isArray(rows)) return [];
-    return rows.map(r => ({
-      id: r.payable_id,
-      supplierName: r.supplier_name,
-      totalAmount: r.total_amount,
-      remainingAmount: r.remaining_amount,
-      dueDate: r.due_date,
-      note: r.note
-    }));
-  }
-}
-
-// Global olarak tarayıcı ve app.js context'ine bağla
+// Global Context Bağlantıları
 window.SUPABASE_CONFIG = SUPABASE_CONFIG;
 window.supabaseClient = supabaseClient;
 window.SystemBackupService = SystemBackupService;
 window.DealersService = DealersService;
+window.CustomerReceivablesService = CustomerReceivablesService;
+window.PayablesService = PayablesService;
+window.WarehousePurchasesService = WarehousePurchasesService;
 window.InventoryStockService = InventoryStockService;
 window.CigarettesCatalogService = CigarettesCatalogService;
 window.DailyHistoryService = DailyHistoryService;
-window.PurchasesAndPayablesService = PurchasesAndPayablesService;
