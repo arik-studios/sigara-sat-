@@ -7597,6 +7597,94 @@ function setupBackupRestoreModule() {
   };
   if (snapshotBtnModal) snapshotBtnModal.onclick = handleSnapshot;
   if (snapshotBtnPage) snapshotBtnPage.onclick = handleSnapshot;
+
+  // Supabase Cloud Buttons
+  const btnCloudUpload = document.getElementById('btn-supabase-cloud-upload');
+  const btnCloudDownload = document.getElementById('btn-supabase-cloud-download');
+  const btnSyncTables = document.getElementById('btn-supabase-sync-tables');
+  const syncLabel = document.getElementById('supabase-last-sync-label');
+
+  if (btnCloudUpload) {
+    btnCloudUpload.onclick = async () => {
+      try {
+        btnCloudUpload.disabled = true;
+        btnCloudUpload.innerHTML = '⏳ Yükleniyor...';
+        const payload = createSystemBackupPayload("Supabase Bulut Yedeği");
+        await SystemBackupService.uploadBackup(payload);
+        const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        if (syncLabel) syncLabel.textContent = `Son Yedek: ${timeStr}`;
+        if (typeof showToast === 'function') {
+          showToast("☁️ Tüm veritabanı Supabase bulut sunucusuna başarıyla yüklendi!");
+        }
+      } catch (err) {
+        console.error("Supabase bulut yedekleme hatası:", err);
+        alert(`Buluta yükleme başarısız oldu:\n${err.message}\n\nLütfen Supabase SQL tablolarını oluşturduğunuzdan emin olun.`);
+      } finally {
+        btnCloudUpload.disabled = false;
+        btnCloudUpload.innerHTML = '☁️ Buluta Yedekle';
+      }
+    };
+  }
+
+  if (btnCloudDownload) {
+    btnCloudDownload.onclick = async () => {
+      try {
+        btnCloudDownload.disabled = true;
+        btnCloudDownload.innerHTML = '⏳ Çekiliyor...';
+        const latestPayload = await SystemBackupService.fetchLatestBackup();
+        if (!latestPayload || !latestPayload.data) {
+          alert("Supabase bulutunda henüz kayıtlı bir sistem yedeği bulunamadı!");
+          return;
+        }
+        const confirmRestore = confirm(`Bulutta "${latestPayload.formattedDate || 'En Son'}" tarihli bir yedek bulundu.\n\nBu yedeği sisteme geri yüklemek istiyor musunuz?`);
+        if (confirmRestore) {
+          if (modal) modal.classList.remove('hidden');
+          startSystemRestoreAnimationFlow(latestPayload);
+        }
+      } catch (err) {
+        console.error("Supabase bulut çekme hatası:", err);
+        alert(`Buluttan çekme başarısız oldu:\n${err.message}`);
+      } finally {
+        btnCloudDownload.disabled = false;
+        btnCloudDownload.innerHTML = '☁️ Buluttan Çek';
+      }
+    };
+  }
+
+  if (btnSyncTables) {
+    btnSyncTables.onclick = async () => {
+      try {
+        btnSyncTables.disabled = true;
+        btnSyncTables.innerHTML = '⏳ Tablolar Eşitleniyor...';
+        
+        // 1. Bayiler
+        await DealersService.syncAllDealers(dealersData);
+        // 2. Stoklar
+        await InventoryStockService.syncStock(inventoryStock);
+        // 3. Sigara Kataloğu
+        await CigarettesCatalogService.syncCatalog(CIGARETTES_DB);
+        // 4. Gün Sonu Geçmişi
+        await DailyHistoryService.syncDailyHistory(dailyHistoryStore);
+        // 5. Fabrika Alımları & Borçlar
+        await PurchasesAndPayablesService.syncWarehousePurchases(purchaseHistory);
+        if (typeof payables !== 'undefined') {
+          await PurchasesAndPayablesService.syncPayables(payables || []);
+        }
+
+        const timeStr = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        if (syncLabel) syncLabel.textContent = `Tüm Tablolar: ${timeStr}`;
+        if (typeof showToast === 'function') {
+          showToast("🗄️ Bayiler, Depo Stokları, Katalog ve Borçlar tablo tablo Supabase'e eşitlendi!");
+        }
+      } catch (err) {
+        console.error("Supabase tablo eşitleme hatası:", err);
+        alert(`Tablo eşitleme hatası:\n${err.message}\n\nLütfen Supabase SQL tablolarını oluşturduğunuzdan emin olun.`);
+      } finally {
+        btnSyncTables.disabled = false;
+        btnSyncTables.innerHTML = '🗄️ Tüm Verileri Tablo Tablo Buluta Aktar (Bayi, Depo, Fiyat, Borç)';
+      }
+    };
+  }
 }
 
 function renderBackupPageData() {

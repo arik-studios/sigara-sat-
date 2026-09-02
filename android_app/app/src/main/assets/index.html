@@ -945,6 +945,51 @@
                   </button>
                 </div>
 
+                <!-- KART 3: ☁️ SUPABASE BULUT VERİTABANI & SENKRONİZASYON -->
+                <div style="background:#0f1523; border:1px solid rgba(168,85,247,0.35); border-radius:16px; padding:22px; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+                  <div style="position:absolute; top:0; left:0; width:100%; height:4px; background:linear-gradient(90deg, #9333ea, #c084fc);"></div>
+                  <div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+                      <div style="display:flex; align-items:center; gap:12px;">
+                        <div style="width:44px; height:44px; border-radius:12px; background:rgba(168,85,247,0.15); border:1px solid rgba(168,85,247,0.3); display:flex; align-items:center; justify-content:center; color:#c084fc;">
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
+                        </div>
+                        <div>
+                          <h3 style="color:#ffffff; font-size:1.1rem; font-weight:900; margin:0;">3. Supabase Bulut Veritabanı</h3>
+                          <span style="color:#c084fc; font-size:0.75rem; font-weight:700;">Canlı Çevrimiçi Senkronizasyon</span>
+                        </div>
+                      </div>
+                      <span style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.4); color:#34d399; font-size:0.7rem; font-weight:800; padding:4px 8px; border-radius:6px; display:inline-flex; align-items:center; gap:4px;">
+                        <span style="width:6px; height:6px; border-radius:50%; background:#10b981;"></span>
+                        Bağlı
+                      </span>
+                    </div>
+
+                    <p style="color:#94a3b8; font-size:0.82rem; line-height:1.5; margin-bottom:16px;">
+                      Tüm bayi hesaplarını, stokları, fiyatları ve geçmişi Supabase bulut sunucunuza tek tıkla yükleyin veya buluttaki en son yedeği anında geri çekin.
+                    </p>
+
+                    <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:10px; padding:10px 12px; font-size:0.75rem; color:#cbd5e1; margin-bottom:18px; display:flex; justify-content:space-between; align-items:center;">
+                      <span>Bulut Projesi: <strong style="color:#c084fc; font-family:var(--font-mono);">hwcldjmdnfybaozgxszh</strong></span>
+                      <span style="color:#94a3b8;" id="supabase-last-sync-label">Henüz Eşitlenmedi</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; flex-direction:column; gap:10px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                      <button type="button" class="btn-primary" id="btn-supabase-cloud-upload" style="justify-content:center; padding:12px; font-weight:900; font-size:0.82rem; background:linear-gradient(135deg, #9333ea, #7e22ce); border-color:#a855f7; cursor:pointer;">
+                        ☁️ Buluta Yedekle
+                      </button>
+                      <button type="button" class="btn-primary" id="btn-supabase-cloud-download" style="justify-content:center; padding:12px; font-weight:900; font-size:0.82rem; background:rgba(168,85,247,0.2); border:1px solid rgba(168,85,247,0.5); color:#c084fc; cursor:pointer;">
+                        ☁️ Buluttan Çek
+                      </button>
+                    </div>
+                    <button type="button" class="pill-btn" id="btn-supabase-sync-tables" style="width:100%; justify-content:center; padding:10px; font-weight:800; font-size:0.78rem; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#e2e8f0; cursor:pointer;">
+                      🗄️ Tüm Verileri Tablo Tablo Buluta Aktar (Bayi, Depo, Fiyat, Borç)
+                    </button>
+                  </div>
+                </div>
+
               </div>
 
               <!-- Cihazdaki Tarihli Anlık Yedek Noktaları Tablosu -->
@@ -3453,6 +3498,7 @@
   <!-- Floating Toast Notification Container -->
   <div id="app-toast-container" class="toast-container"></div>
 
+  <script src="supabase_client.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
