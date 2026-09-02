@@ -1844,7 +1844,7 @@ function renderTenantsPage() {
     if (isSuspended) {
       statusBadge = '<span class="badge badge-rose" style="font-size:0.75rem;">🔒 Askıya Alındı (Kilitli)</span>';
       durationInfo = '<span style="color:#fb7185; font-size:0.75rem;">Patron tarafından kapatıldı</span>';
-    } else if (!t.license_key || t.status === 'pending_license') {
+    } else if (!t.license_key || t.status === 'pending_license' || t.license_key.startsWith('BEKLIYOR')) {
       pendingCount++;
       statusBadge = '<span class="badge badge-amber" style="font-size:0.75rem;">⏳ Anahtar Bekliyor</span>';
       durationInfo = '<span style="color:#facc15; font-size:0.75rem;">Yeni kayıt oldu, anahtar atanmalı</span>';
@@ -1881,7 +1881,8 @@ function renderTenantsPage() {
     }
 
     const regDate = t.created_at ? new Date(t.created_at).toLocaleDateString('tr-TR') : '-';
-    const keyDisplay = t.license_key ? `<span style="font-family:monospace; font-weight:800; color:#38bdf8; font-size:0.8rem; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:4px;">${t.license_key}</span>` : '<span style="color:#64748b; font-size:0.75rem;">Atanmadı</span>';
+    const isPendingKey = !t.license_key || t.license_key.startsWith('BEKLIYOR');
+    const keyDisplay = !isPendingKey ? `<span style="font-family:monospace; font-weight:800; color:#38bdf8; font-size:0.8rem; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:4px;">${t.license_key}</span>` : '<span style="color:#f59e0b; font-size:0.75rem; font-weight:700;">Atanmadı (Bekliyor)</span>';
     const deviceDisplay = t.bound_device_id ? `<span style="font-family:monospace; font-size:0.72rem; color:#94a3b8;">${t.bound_device_id}</span>` : '<span style="color:#64748b; font-size:0.72rem;">Henüz Giriş Yapılmadı</span>';
 
     return `

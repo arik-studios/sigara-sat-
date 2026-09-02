@@ -9294,9 +9294,10 @@ window.resetTestDataForRestoreDemo = function() {
 
     const regDataRaw = localStorage.getItem(REGISTRATION_STORAGE_KEY);
     const savedKey = (localStorage.getItem(LICENSE_STORAGE_KEY) || '').trim().toUpperCase();
+    const hasValidKey = savedKey && !savedKey.startsWith('BEKLIYOR');
 
     // 1. KONTROL: Henüz Kayıt Olunmamışsa -> ADIM 1: Kayıt Formunu Göster
-    if (!regDataRaw && !savedKey) {
+    if (!regDataRaw && !hasValidKey) {
       modalGate.style.display = 'flex';
       modalGate.classList.remove('hidden');
       if (closeGateBtn) closeGateBtn.style.display = 'none';
@@ -9306,7 +9307,7 @@ window.resetTestDataForRestoreDemo = function() {
     }
 
     // 2. KONTROL: Kayıt var ama lisans anahtarı henüz girilmemişse -> ADIM 2: Anahtar Girişini Göster
-    if (!savedKey) {
+    if (!hasValidKey) {
       modalGate.style.display = 'flex';
       modalGate.classList.remove('hidden');
       if (closeGateBtn) closeGateBtn.style.display = 'none';
@@ -9545,6 +9546,7 @@ window.resetTestDataForRestoreDemo = function() {
         contact_person: contactPerson,
         phone: phone,
         status: 'pending_license',
+        license_key: `BEKLIYOR-${tenantId}`,
         bound_device_id: deviceId,
         bound_device_info: (navigator.userAgent || 'Mobil Cihaz').substring(0, 60),
         notes: JSON.stringify({
@@ -9565,7 +9567,8 @@ window.resetTestDataForRestoreDemo = function() {
       });
 
       if (!res.ok) {
-        throw new Error("Kayıt sunucuya iletilemedi (HTTP " + res.status + ")");
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.message || `Sunucu hatası HTTP ${res.status}`);
       }
 
       // Yerel olarak kaydet
