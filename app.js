@@ -269,15 +269,52 @@ function initDeviceControls() {
 }
 
 /* ==========================================================================
-   5. VERİTABANI & LOCALSTORAGE
+   5. VERİTABANI & LOCALSTORAGE (ÇOKLU TOPTANCI HESAP İZOLASYONU)
    ========================================================================== */
-const STORAGE_KEY_DEALERS = 'toptan_dealers_data_v1';
-const STORAGE_KEY_DAILY_SALES = 'toptan_daily_sales_v1';
+function getActiveTenantId() {
+  return (typeof localStorage !== 'undefined' && localStorage.getItem('wholesaler_active_tenant_id')) || (typeof window !== 'undefined' && window.CURRENT_TENANT_ID) || 'default_tenant';
+}
+
+function getTenantStorageKey(baseKey) {
+  const tenantId = getActiveTenantId();
+  return `${baseKey}_${tenantId}`;
+}
+
+let STORAGE_KEY_DEALERS = getTenantStorageKey('toptan_dealers_data_v1');
+let STORAGE_KEY_DAILY_SALES = getTenantStorageKey('toptan_daily_sales_v1');
 const STORAGE_KEY_CIGS = 'toptan_cigarettes_db_v5';
-const STORAGE_KEY_INVENTORY = 'toptan_inventory_stock_v4';
-const STORAGE_KEY_PURCHASE_HISTORY = 'toptan_purchase_history_v4';
-const STORAGE_KEY_DAILY_HISTORY = 'toptan_daily_history_v5';
-const STORAGE_KEY_LAST_CUTOFF = 'toptan_last_cutoff_v5';
+let STORAGE_KEY_INVENTORY = getTenantStorageKey('toptan_inventory_stock_v4');
+let STORAGE_KEY_PURCHASE_HISTORY = getTenantStorageKey('toptan_purchase_history_v4');
+let STORAGE_KEY_DAILY_HISTORY = getTenantStorageKey('toptan_daily_history_v5');
+let STORAGE_KEY_LAST_CUTOFF = getTenantStorageKey('toptan_last_cutoff_v5');
+let STORAGE_KEY_CUSTOMER_REC = getTenantStorageKey('sat_panel_customer_receivables');
+let STORAGE_KEY_PAYABLES = getTenantStorageKey('sat_panel_payables');
+let BACKUP_STORAGE_KEY_SNAPSHOTS = getTenantStorageKey('toptan_backup_snapshots_v1');
+
+function updateStorageKeysForActiveTenant() {
+  STORAGE_KEY_DEALERS = getTenantStorageKey('toptan_dealers_data_v1');
+  STORAGE_KEY_DAILY_SALES = getTenantStorageKey('toptan_daily_sales_v1');
+  STORAGE_KEY_INVENTORY = getTenantStorageKey('toptan_inventory_stock_v4');
+  STORAGE_KEY_PURCHASE_HISTORY = getTenantStorageKey('toptan_purchase_history_v4');
+  STORAGE_KEY_DAILY_HISTORY = getTenantStorageKey('toptan_daily_history_v5');
+  STORAGE_KEY_LAST_CUTOFF = getTenantStorageKey('toptan_last_cutoff_v5');
+  STORAGE_KEY_CUSTOMER_REC = getTenantStorageKey('sat_panel_customer_receivables');
+  STORAGE_KEY_PAYABLES = getTenantStorageKey('sat_panel_payables');
+  BACKUP_STORAGE_KEY_SNAPSHOTS = getTenantStorageKey('toptan_backup_snapshots_v1');
+}
+
+function reloadAllTenantData() {
+  updateStorageKeysForActiveTenant();
+  initDatabaseAndStorage();
+  if (typeof initPayablesModule === 'function') initPayablesModule();
+  if (typeof renderHomeStockTable === 'function') renderHomeStockTable();
+  if (typeof renderStockPieChart === 'function') renderStockPieChart();
+  if (typeof renderPurchaseHistoryTable === 'function') renderPurchaseHistoryTable();
+  if (typeof renderOrdersGrid === 'function') renderOrdersGrid();
+  if (typeof renderDebtLists === 'function') renderDebtLists();
+  if (typeof updateDailySalesReports === 'function') updateDailySalesReports();
+}
+window.reloadAllTenantData = reloadAllTenantData;
 
 let dealersData = [];
 let dailySalesData = [];
@@ -286,8 +323,9 @@ let purchaseHistory = [];
 let dailyHistoryStore = {};
 let timelineWindowOffset = 0; // 0 = en güncel 7 gün
 
-
 function initDatabaseAndStorage() {
+  updateStorageKeysForActiveTenant();
+
   const savedCigs = localStorage.getItem(STORAGE_KEY_CIGS);
   if (savedCigs) {
     try {
@@ -298,16 +336,6 @@ function initDatabaseAndStorage() {
     } catch (e) { }
   } else {
     localStorage.setItem(STORAGE_KEY_CIGS, JSON.stringify(CIGARETTES_DB));
-  }
-
-  // Otomatik Temizleme (Test için noktalar, satışlar ve stoklar sıfırlanır; katalog, fabrika alımları ve tedarikçi borçları korunur)
-  if (localStorage.getItem('toptan_clean_reset_v12') !== 'done') {
-    localStorage.setItem(STORAGE_KEY_DEALERS, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_DAILY_SALES, JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_INVENTORY, JSON.stringify({}));
-    localStorage.removeItem('toptan_inventory_stock_v1');
-    localStorage.setItem(STORAGE_KEY_DAILY_HISTORY, JSON.stringify({}));
-    localStorage.setItem('toptan_clean_reset_v12', 'done');
   }
 
   const savedDealers = localStorage.getItem(STORAGE_KEY_DEALERS);
@@ -3701,8 +3729,12 @@ function renderOrdersGrid(filterDateStr) {
   `).join('');
 }
 
-let STORAGE_KEY_CUSTOMER_REC = 'sat_panel_customer_receivables';
-let customerReceivablesData = JSON.parse(localStorage.getItem('sat_panel_customer_receivables') || '[]');
+let customerReceivablesData = [];
+try {
+  customerReceivablesData = JSON.parse(localStorage.getItem(STORAGE_KEY_CUSTOMER_REC) || '[]');
+} catch (e) {
+  customerReceivablesData = [];
+}
 
 let targetRecToDelete = null;
 let pendingRecDeleteAmount = 0;
@@ -6152,7 +6184,6 @@ function parseSaleItemsString(itemsStr, saleTotal) {
    BÖLÜM 17: ÖDENECEK BORÇLAR (TEDARİKCİ) & SATIŞ SİLME ANİMASYON SİSTEMİ
    ========================================================================== */
 
-const STORAGE_KEY_PAYABLES = 'sat_panel_payables';
 let payablesData = [];
 let targetPayableDebtId = null;
 
@@ -6165,11 +6196,10 @@ function initPayablesModule() {
     try {
       payablesData = JSON.parse(saved);
     } catch (e) {
-      payablesData = getInitialPayables();
+      payablesData = [];
     }
   } else {
-    payablesData = getInitialPayables();
-    savePayablesToStorage();
+    payablesData = [];
   }
 
   setupPayablesEventHandlers();
@@ -7759,8 +7789,6 @@ function downloadCutoffSummaryPDF() {
 /* ==========================================================================
    39. TAM SİSTEM VERİ YEDEKLEME & GERİ YÜKLEME MODÜLÜ (BULUT / DOSYA / ANİMASYON)
    ========================================================================== */
-const BACKUP_STORAGE_KEY_SNAPSHOTS = 'toptan_backup_snapshots_v1';
-
 let selectedBackupPayloadToRestore = null;
 
 function setupBackupRestoreModule() {
@@ -8489,7 +8517,8 @@ window.resetTestDataForRestoreDemo = function() {
 
   function getLocalChatHistory() {
     try {
-      const raw = localStorage.getItem(LOCAL_CHAT_STORAGE);
+      const tId = localStorage.getItem('wholesaler_active_tenant_id') || 'default_tenant';
+      const raw = localStorage.getItem(`${LOCAL_CHAT_STORAGE}_${tId}`);
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
       return [];
@@ -8498,13 +8527,15 @@ window.resetTestDataForRestoreDemo = function() {
 
   function saveLocalChatHistory(msgs) {
     try {
-      localStorage.setItem(LOCAL_CHAT_STORAGE, JSON.stringify(msgs.slice(-300)));
+      const tId = localStorage.getItem('wholesaler_active_tenant_id') || 'default_tenant';
+      localStorage.setItem(`${LOCAL_CHAT_STORAGE}_${tId}`, JSON.stringify(msgs.slice(-300)));
     } catch (e) {}
   }
 
   function getLocalTickets() {
     try {
-      const raw = localStorage.getItem(LOCAL_TICKETS_STORAGE);
+      const tId = localStorage.getItem('wholesaler_active_tenant_id') || 'default_tenant';
+      const raw = localStorage.getItem(`${LOCAL_TICKETS_STORAGE}_${tId}`);
       return raw ? JSON.parse(raw) : [];
     } catch (e) {
       return [];
@@ -8513,7 +8544,8 @@ window.resetTestDataForRestoreDemo = function() {
 
   function saveLocalTickets(tickets) {
     try {
-      localStorage.setItem(LOCAL_TICKETS_STORAGE, JSON.stringify(tickets));
+      const tId = localStorage.getItem('wholesaler_active_tenant_id') || 'default_tenant';
+      localStorage.setItem(`${LOCAL_TICKETS_STORAGE}_${tId}`, JSON.stringify(tickets));
     } catch (e) {}
   }
 
@@ -8607,7 +8639,8 @@ window.resetTestDataForRestoreDemo = function() {
 
   async function fetchMessages(isBackground = true) {
     try {
-      const res = await fetch(`${SUPABASE_URL}/support_messages?order=created_at.asc&limit=250`, {
+      const tenantId = localStorage.getItem('wholesaler_active_tenant_id') || window.CURRENT_TENANT_ID || 'default_tenant';
+      const res = await fetch(`${SUPABASE_URL}/support_messages?tenant_id=eq.${encodeURIComponent(tenantId)}&order=created_at.asc&limit=250`, {
         headers: {
           'apikey': SUPABASE_KEY,
           'Authorization': `Bearer ${SUPABASE_KEY}`
@@ -9493,6 +9526,9 @@ window.resetTestDataForRestoreDemo = function() {
       // BAŞARILI: UYGULAMAYI AÇ VE KULLANICI BİLGİLERİNİ YANSIT
       localStorage.setItem(TENANT_STORAGE_KEY, tenant.tenant_id);
       window.CURRENT_TENANT_ID = tenant.tenant_id;
+      if (typeof reloadAllTenantData === 'function') {
+        reloadAllTenantData();
+      }
       modalGate.classList.add('hidden');
       modalGate.style.display = 'none';
       if (closeGateBtn) closeGateBtn.style.display = 'block';
@@ -9588,6 +9624,9 @@ window.resetTestDataForRestoreDemo = function() {
       localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(payload));
       localStorage.setItem(TENANT_STORAGE_KEY, tenantId);
       window.CURRENT_TENANT_ID = tenantId;
+      if (typeof reloadAllTenantData === 'function') {
+        reloadAllTenantData();
+      }
 
       if (alertBox) alertBox.style.display = 'none';
       if (stepRegister) stepRegister.style.display = 'none';

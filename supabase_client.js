@@ -77,12 +77,25 @@ class SupabaseRestClient {
 
 const supabaseClient = new SupabaseRestClient(SUPABASE_CONFIG);
 
+function getActiveTenantId() {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('wholesaler_active_tenant_id');
+    if (saved) return saved;
+  }
+  if (typeof window !== 'undefined' && window.CURRENT_TENANT_ID) {
+    return window.CURRENT_TENANT_ID;
+  }
+  return 'default_tenant';
+}
+
 /* ============================================================================
    1. TAM SİSTEM YEDEK SERVİSİ (SystemBackupService)
    ============================================================================ */
 class SystemBackupService {
   static async uploadBackup(payload) {
+    const tenantId = getActiveTenantId();
     const record = {
+      tenant_id: tenantId,
       app_name: payload.app || "Toptan Satis Yonetim Paneli",
       schema_version: payload.schemaVersion || "6.0",
       export_date: payload.exportDate || new Date().toISOString(),
@@ -99,7 +112,8 @@ class SystemBackupService {
   }
 
   static async fetchLatestBackup() {
-    const result = await supabaseClient.get('system_backups', 'order=export_timestamp.desc&limit=1');
+    const tenantId = getActiveTenantId();
+    const result = await supabaseClient.get('system_backups', `tenant_id=eq.${encodeURIComponent(tenantId)}&order=export_timestamp.desc&limit=1`);
     if (Array.isArray(result) && result.length > 0) {
       return result[0].payload_json;
     }
@@ -107,7 +121,8 @@ class SystemBackupService {
   }
 
   static async fetchAllBackups() {
-    return await supabaseClient.get('system_backups', 'select=id,created_at,formatted_date,backup_note,total_dealers,total_stock_cartons,export_timestamp&order=export_timestamp.desc&limit=50');
+    const tenantId = getActiveTenantId();
+    return await supabaseClient.get('system_backups', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=id,created_at,formatted_date,backup_note,total_dealers,total_stock_cartons,export_timestamp&order=export_timestamp.desc&limit=50`);
   }
 }
 
@@ -118,7 +133,9 @@ class DealersService {
   static async syncAllDealers(dealersList) {
     if (!Array.isArray(dealersList) || dealersList.length === 0) return [];
     
+    const tenantId = getActiveTenantId();
     const records = dealersList.map(d => ({
+      tenant_id: tenantId,
       dealer_id: d.id,
       name: d.name || '',
       phone: d.phone || '',
@@ -136,7 +153,8 @@ class DealersService {
   }
 
   static async fetchAllDealers() {
-    const rows = await supabaseClient.get('dealers', 'select=*&order=name.asc');
+    const tenantId = getActiveTenantId();
+    const rows = await supabaseClient.get('dealers', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=*&order=name.asc`);
     if (!Array.isArray(rows)) return [];
     return rows.map(r => ({
       id: r.dealer_id,
@@ -160,7 +178,9 @@ class CustomerReceivablesService {
   static async syncReceivables(receivablesList) {
     if (!Array.isArray(receivablesList) || receivablesList.length === 0) return [];
 
+    const tenantId = getActiveTenantId();
     const records = receivablesList.map(r => ({
+      tenant_id: tenantId,
       rec_id: r.id || `REC-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       customer_name: r.customerName || r.name || '',
       phone: r.phone || '',
@@ -175,7 +195,8 @@ class CustomerReceivablesService {
   }
 
   static async fetchReceivables() {
-    const rows = await supabaseClient.get('customer_receivables', 'select=*&order=due_date.asc');
+    const tenantId = getActiveTenantId();
+    const rows = await supabaseClient.get('customer_receivables', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=*&order=due_date.asc`);
     if (!Array.isArray(rows)) return [];
     return rows.map(r => ({
       id: r.rec_id,
@@ -195,7 +216,9 @@ class CustomerReceivablesService {
 class PayablesService {
   static async syncPayables(payablesList) {
     if (!Array.isArray(payablesList) || payablesList.length === 0) return [];
+    const tenantId = getActiveTenantId();
     const records = payablesList.map(p => ({
+      tenant_id: tenantId,
       payable_id: p.id || `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       supplier_name: p.supplierName || p.name || '',
       total_amount: p.totalAmount || p.amount || 0,
@@ -208,7 +231,8 @@ class PayablesService {
   }
 
   static async fetchPayables() {
-    const rows = await supabaseClient.get('payables', 'select=*&order=due_date.asc');
+    const tenantId = getActiveTenantId();
+    const rows = await supabaseClient.get('payables', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=*&order=due_date.asc`);
     if (!Array.isArray(rows)) return [];
     return rows.map(r => ({
       id: r.payable_id,
@@ -227,7 +251,9 @@ class PayablesService {
 class WarehousePurchasesService {
   static async syncPurchases(purchasesList) {
     if (!Array.isArray(purchasesList) || purchasesList.length === 0) return [];
+    const tenantId = getActiveTenantId();
     const records = purchasesList.map(p => ({
+      tenant_id: tenantId,
       purchase_id: p.id || `PUR-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       date: p.date || new Date().toISOString(),
       factory_name: p.factoryName || p.supplier || 'Ana Fabrika',
@@ -243,7 +269,8 @@ class WarehousePurchasesService {
   }
 
   static async fetchPurchases() {
-    const rows = await supabaseClient.get('warehouse_purchases', 'select=*&order=date.desc');
+    const tenantId = getActiveTenantId();
+    const rows = await supabaseClient.get('warehouse_purchases', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=*&order=date.desc`);
     if (!Array.isArray(rows)) return [];
     return rows.map(r => ({
       id: r.purchase_id,
@@ -264,6 +291,7 @@ class WarehousePurchasesService {
    ============================================================================ */
 class InventoryStockService {
   static async syncStock(stockMap) {
+    const tenantId = getActiveTenantId();
     const records = Object.entries(stockMap || {}).map(([cigId, val]) => {
       let cartons = 0;
       let packets = 0;
@@ -274,6 +302,7 @@ class InventoryStockService {
         packets = val.stockPackets || 0;
       }
       return {
+        tenant_id: tenantId,
         cigarette_id: cigId,
         stock_cartons: cartons,
         stock_packets: packets,
@@ -286,7 +315,8 @@ class InventoryStockService {
   }
 
   static async fetchStock() {
-    const rows = await supabaseClient.get('inventory_stock', 'select=*');
+    const tenantId = getActiveTenantId();
+    const rows = await supabaseClient.get('inventory_stock', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=*`);
     if (!Array.isArray(rows)) return {};
     const map = {};
     rows.forEach(r => {
@@ -342,7 +372,9 @@ class CigarettesCatalogService {
    ============================================================================ */
 class DailyHistoryService {
   static async syncDailyHistory(historyMap) {
+    const tenantId = getActiveTenantId();
     const records = Object.entries(historyMap || {}).map(([dateKey, val]) => ({
+      tenant_id: tenantId,
       date_key: dateKey,
       date_str: val.dateStr || dateKey,
       total_sales: val.sales || 0,
@@ -357,7 +389,8 @@ class DailyHistoryService {
   }
 
   static async fetchDailyHistory() {
-    const rows = await supabaseClient.get('daily_history', 'select=*&order=date_key.desc');
+    const tenantId = getActiveTenantId();
+    const rows = await supabaseClient.get('daily_history', `tenant_id=eq.${encodeURIComponent(tenantId)}&select=*&order=date_key.desc`);
     if (!Array.isArray(rows)) return {};
     const map = {};
     rows.forEach(r => {
