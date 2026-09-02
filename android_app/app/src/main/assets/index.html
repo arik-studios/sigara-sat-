@@ -62,7 +62,7 @@
               </button>
               <div class="user-greeting-box">
                 <div class="sub-title">Toptan Satış Yönetim Paneli</div>
-                <h1 class="user-welcome">Hoş geldin Ramazan Türk</h1>
+                <h1 class="user-welcome" id="topbar-user-welcome">Hoş Geldiniz</h1>
               </div>
             </div>
 
@@ -77,7 +77,7 @@
                 <input type="date" id="topbar-date-input" aria-label="Tarih Seç" />
               </div>
               <div class="avatar-pill">
-                <div class="avatar-img">RT</div>
+                <div class="avatar-img" id="topbar-user-avatar">TS</div>
                 <div class="online-indicator"></div>
               </div>
             </div>
@@ -212,8 +212,8 @@
             <div class="drawer-footer">
               <div class="admin-chip" onclick="window.openLicenseModal && window.openLicenseModal();" style="cursor:pointer;" title="Lisans & Cihaz Kilidi Durumunu Görüntüle">
                 <div class="admin-info">
-                  <div class="name">Ramazan Türk</div>
-                  <div class="role">Ana Yönetici (Super Admin)</div>
+                  <div class="name" id="drawer-user-name">Toptancı Yönetimi</div>
+                  <div class="role" id="drawer-user-role">Sistem Lisansı Bekleniyor</div>
                 </div>
                 <div class="status-tag" style="display:flex; align-items:center; gap:4px;"><span>🔑</span> <span>Lisans</span></div>
               </div>
@@ -1368,9 +1368,9 @@
           <!-- Fatura Üst Başlık -->
           <div class="invoice-paper-header">
             <div class="invoice-company">
-              <h2 class="inv-brand-title">TÜRK TOPTAN GIDA & TÜTÜN DAĞITIM</h2>
-              <div class="inv-sub">Merkez Dağıtım & Sevkiyat Ağı • Yönetici: Ramazan Türk</div>
-              <div class="inv-sub">Tel: 0555 000 00 00 • İstanbul / Türkiye</div>
+              <h2 class="inv-brand-title" id="inv-header-brand">TOPTAN SATIŞ & DAĞITIM</h2>
+              <div class="inv-sub" id="inv-header-company">Merkez Dağıtım & Sevkiyat Ağı</div>
+              <div class="inv-sub" id="inv-header-phone">İletişim & Sevkiyat</div>
             </div>
             <div class="invoice-meta-box">
               <div class="inv-tag">SATIŞ FATURASI / SEVK İRSALİYESİ</div>
@@ -2943,8 +2943,8 @@
         <!-- Rapor Üst Başlık (A4 PDF İçin) -->
         <div style="background:linear-gradient(135deg, #0f172a, #1e293b); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:18px 22px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div>
-            <h2 style="font-size:1.15rem; font-weight:900; color:#00f2fe; margin-bottom:4px;">TÜRK TOPTAN GIDA & TÜTÜN DAĞITIM</h2>
-            <div style="font-size:0.78rem; color:#cbd5e1;">Yönetici: Ramazan Türk • Genel Sevkiyat & Kârlılık Raporu</div>
+            <h2 style="font-size:1.15rem; font-weight:900; color:#00f2fe; margin-bottom:4px;" id="report-header-brand">TOPTAN SATIŞ & DAĞITIM</h2>
+            <div style="font-size:0.78rem; color:#cbd5e1;" id="report-header-company">Genel Sevkiyat & Kârlılık Raporu</div>
           </div>
           <div style="text-align:right;">
             <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">DÜZENLEME TARİHİ</div>
@@ -3716,48 +3716,118 @@
   </div>
 
   <!-- ==========================================================================
-       LİSANS & DONANIM CİHAZ KİLİDİ MODALI (AÇILIŞTA GEÇİLEMEZ KİLİT)
+       LİSANS & DONANIM CİHAZ KİLİDİ MODALI (KAYIT & GEÇİLEMEZ LİSANS KAPISI)
        ========================================================================== -->
   <div id="modal-license-gate" style="position:fixed !important; top:0; left:0; width:100vw; height:100vh; background:#030712; z-index:999999999; display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;">
-    <div style="background:#090e1a; border:1px solid rgba(99,102,241,0.35); box-shadow:0 30px 80px rgba(0,0,0,0.95), 0 0 50px rgba(99,102,241,0.25); border-radius:20px; max-width:480px; width:100%; padding:28px 24px; text-align:center; position:relative;">
+    <div style="background:#090e1a; border:1px solid rgba(99,102,241,0.35); box-shadow:0 30px 80px rgba(0,0,0,0.95), 0 0 50px rgba(99,102,241,0.25); border-radius:20px; max-width:480px; width:100%; padding:28px 24px; text-align:center; position:relative; max-height:92vh; overflow-y:auto;">
       
       <!-- Lisanssızken kapatma butonu YOKTUR - Kesinlikle geçilemez -->
       <button type="button" id="btn-close-license-gate" onclick="window.closeLicenseModal && window.closeLicenseModal();" style="display:none; position:absolute; top:16px; right:16px; background:none; border:none; color:#64748b; font-size:1.6rem; cursor:pointer; line-height:1;">&times;</button>
 
-      <div style="width:68px; height:68px; border-radius:20px; background:linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(168,85,247,0.2) 100%); border:1px solid #818cf8; display:flex; align-items:center; justify-content:center; margin:0 auto 18px; color:#a5b4fc;">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div style="width:64px; height:64px; border-radius:20px; background:linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(168,85,247,0.2) 100%); border:1px solid #818cf8; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; color:#a5b4fc;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </div>
 
-      <h2 id="lic-gate-title" style="font-size:1.3rem; font-weight:900; color:#ffffff; margin:0 0 8px;">Sistem Aktivasyonu & Lisans</h2>
-      <p id="lic-gate-desc" style="font-size:0.82rem; color:#94a3b8; line-height:1.45; margin:0 0 20px;">
-        Bu yazılım izinsiz kopyalama ve kaçak kullanıma karşı donanım kilidiyle korunmaktadır. Lütfen yöneticinizden aldığınız lisans anahtarını giriniz.
-      </p>
-
-      <!-- Hata / Uyarı Mesajı -->
+      <!-- Hata / Uyarı Mesajı Kutusu -->
       <div id="lic-gate-alert" style="display:none; background:rgba(244,63,94,0.12); border:1px solid #f43f5e; color:#fca5a5; font-size:0.8rem; font-weight:700; padding:10px 14px; border-radius:10px; margin-bottom:16px; text-align:left;">
         <span id="lic-gate-alert-text">Lisans hatası</span>
       </div>
 
-      <div id="lic-gate-input-box" style="margin-bottom:16px;">
-        <label style="display:block; text-align:left; font-size:0.75rem; font-weight:800; color:#a5b4fc; margin-bottom:6px;">LİSANS ANAHTARINIZ</label>
-        <input type="text" id="input-license-key" placeholder="Örn: LIC-8421-9502" style="width:100%; box-sizing:border-box; background:#040711; border:1.5px solid #6366f1; color:#38bdf8; padding:12px 14px; border-radius:12px; font-family:monospace; font-size:1.1rem; font-weight:800; text-align:center; letter-spacing:1.5px; outline:none; text-transform:uppercase;" />
+      <!-- ==========================================
+           ADIM 1: YENİ TOPTANCI KAYIT FORMU
+           ========================================== -->
+      <div id="lic-step-register" style="display:block;">
+        <h2 style="font-size:1.25rem; font-weight:900; color:#ffffff; margin:0 0 6px;">Toptancı Kaydı & Aktivasyon</h2>
+        <p style="font-size:0.82rem; color:#94a3b8; line-height:1.45; margin:0 0 18px;">
+          Sistemi kullanmaya başlamak için lütfen işletme ve iletişim bilgilerinizi giriniz. Bilgileriniz yöneticiye (Patron) iletilecektir.
+        </p>
+
+        <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px; text-align:left;">
+          <div>
+            <label style="display:block; font-size:0.75rem; font-weight:800; color:#cbd5e1; margin-bottom:4px;">YETKİLİ ADI SOYADI *</label>
+            <input type="text" id="reg-contact-person" placeholder="Örn: Ahmet Yılmaz" style="width:100%; box-sizing:border-box; background:#040711; border:1px solid rgba(255,255,255,0.15); color:#fff; padding:11px 14px; border-radius:10px; font-size:0.9rem; outline:none;" />
+          </div>
+
+          <div>
+            <label style="display:block; font-size:0.75rem; font-weight:800; color:#cbd5e1; margin-bottom:4px;">ŞİRKET / TOPTANCI İSMİ *</label>
+            <input type="text" id="reg-company-name" placeholder="Örn: Yılmaz Toptan Gıda" style="width:100%; box-sizing:border-box; background:#040711; border:1px solid rgba(255,255,255,0.15); color:#fff; padding:11px 14px; border-radius:10px; font-size:0.9rem; outline:none;" />
+          </div>
+
+          <div>
+            <label style="display:block; font-size:0.75rem; font-weight:800; color:#cbd5e1; margin-bottom:4px;">TELEFON NUMARASI *</label>
+            <input type="tel" id="reg-phone" placeholder="Örn: 0532 123 45 67" style="width:100%; box-sizing:border-box; background:#040711; border:1px solid rgba(255,255,255,0.15); color:#fff; padding:11px 14px; border-radius:10px; font-size:0.9rem; outline:none;" />
+          </div>
+        </div>
+
+        <button type="button" id="btn-submit-registration" style="width:100%; background:linear-gradient(135deg, #10b981 0%, #059669 100%); border:1px solid #34d399; color:#ffffff; padding:13px 20px; border-radius:12px; font-size:0.92rem; font-weight:900; cursor:pointer; box-shadow:0 8px 25px rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px;">
+          <span>🚀 Hesap Oluştur & Yöneticiye Gönder</span>
+        </button>
+
+        <button type="button" id="btn-switch-to-key" style="background:none; border:none; color:#818cf8; font-size:0.8rem; cursor:pointer; font-weight:700; text-decoration:underline;">
+          Zaten bir lisans anahtarım var →
+        </button>
       </div>
 
-      <button type="button" id="btn-activate-license" style="width:100%; background:linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border:1px solid #818cf8; color:#ffffff; padding:13px 20px; border-radius:12px; font-size:0.92rem; font-weight:900; cursor:pointer; box-shadow:0 8px 25px rgba(79,70,229,0.4); display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:18px;">
-        <span>Cihazı Mühürle & Giriş Yap</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-      </button>
+      <!-- ==========================================
+           ADIM 2: ERİŞİM / LİSANS ANAHTARI GİRİŞİ
+           ========================================== -->
+      <div id="lic-step-key" style="display:none;">
+        <h2 id="lic-gate-title" style="font-size:1.25rem; font-weight:900; color:#ffffff; margin:0 0 6px;">Erişim Anahtarı Girişi</h2>
+        <p id="lic-gate-desc" style="font-size:0.82rem; color:#94a3b8; line-height:1.45; margin:0 0 18px;">
+          Kaydınız alındı. Lütfen yöneticinizden (Patron) aldığınız <strong>30 Günlük</strong> veya <strong>Sınırsız</strong> lisans anahtarını giriniz:
+        </p>
 
-      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:10px 14px; text-align:left; font-size:0.72rem; color:#64748b;">
+        <div id="lic-gate-input-box" style="margin-bottom:16px;">
+          <label style="display:block; text-align:left; font-size:0.75rem; font-weight:800; color:#a5b4fc; margin-bottom:6px;">LİSANS / ERİŞİM ANAHTARINIZ</label>
+          <input type="text" id="input-license-key" placeholder="Örn: LIC-30D-9502" style="width:100%; box-sizing:border-box; background:#040711; border:1.5px solid #6366f1; color:#38bdf8; padding:12px 14px; border-radius:12px; font-family:monospace; font-size:1.1rem; font-weight:800; text-align:center; letter-spacing:1.5px; outline:none; text-transform:uppercase;" />
+        </div>
+
+        <button type="button" id="btn-activate-license" style="width:100%; background:linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border:1px solid #818cf8; color:#ffffff; padding:13px 20px; border-radius:12px; font-size:0.92rem; font-weight:900; cursor:pointer; box-shadow:0 8px 25px rgba(79,70,229,0.4); display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
+          <span>Cihazı Mühürle & Giriş Yap</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <button type="button" id="btn-switch-to-reg" style="background:none; border:none; color:#94a3b8; font-size:0.78rem; cursor:pointer; font-weight:700;">
+          ← Bilgilerimi Düzenle
+        </button>
+      </div>
+
+      <div style="margin-top:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:10px; padding:10px 14px; text-align:left; font-size:0.72rem; color:#64748b;">
         <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
           <span>Cihaz Donanım Kimliği:</span>
           <strong id="display-device-fingerprint" style="color:#94a3b8; font-family:monospace;">--</strong>
         </div>
         <div style="color:#475569; font-size:0.68rem; line-height:1.3;">
-          * Lisansınız tek bir cihaza mühürlenir. Başka telefona kopyalanamaz. Cihaz değişikliğinde sistem yöneticinizden kilidi sıfırlamasını isteyiniz.
+          * Lisans anahtarı ilk girildiği andan itibaren süre işlemeye başlar. Lisans tek bir cihaza mühürlenir.
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       7 GÜNLÜK HOŞGÖRÜ EK SÜRE UYARI MODALI (SİSTEM HENÜZ KİLİTLENMEDİ)
+       ========================================================================== -->
+  <div id="modal-grace-warning" style="display:none; position:fixed !important; inset:0; background:rgba(0,0,0,0.85); z-index:99999999; align-items:center; justify-content:center; padding:16px;">
+    <div style="background:#090e1a; border:2px solid #f59e0b; box-shadow:0 25px 70px rgba(245,158,11,0.25); border-radius:18px; max-width:440px; width:100%; padding:24px; text-align:center;">
+      <div style="width:60px; height:60px; border-radius:16px; background:rgba(245,158,11,0.15); border:1px solid #fbbf24; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; font-size:1.8rem;">
+        ⚠️
+      </div>
+      <h3 style="font-size:1.2rem; font-weight:900; color:#fbbf24; margin:0 0 8px;">30 Günlük Lisans Süreniz Doldu!</h3>
+      <p style="font-size:0.85rem; color:#e2e8f0; line-height:1.45; margin:0 0 14px;">
+        Sisteminiz <strong>7 günlük hoşgörü süresi</strong> modundadır. Ödeme yapılmadığı takdirde sistem <strong id="grace-days-left-text" style="color:#f43f5e;">7 gün</strong> içinde tamamen kilitlenecektir.
+      </p>
+      <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:10px; padding:10px 12px; font-size:0.75rem; color:#fcd34d; text-align:left; margin-bottom:18px;">
+        📌 <strong>Önemli Bilgilendirme:</strong> Geciktiğiniz günler, yeni alacağınız 30 günlük lisans sürenizden otomatik olarak kesilecektir (Örn: 3 gün gecikme = yeni lisans 27 gün).
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button type="button" id="btn-grace-enter-key" onclick="document.getElementById('modal-grace-warning').style.display='none'; window.openLicenseModal();" style="flex:1; background:linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border:none; color:#fff; font-weight:800; padding:11px; border-radius:10px; cursor:pointer;">
+          🔑 Yeni Anahtar Gir
+        </button>
+        <button type="button" id="btn-grace-continue" onclick="document.getElementById('modal-grace-warning').style.display='none';" style="flex:1; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-weight:800; padding:11px; border-radius:10px; cursor:pointer;">
+          Devam Et
+        </button>
+      </div>
     </div>
   </div>
 

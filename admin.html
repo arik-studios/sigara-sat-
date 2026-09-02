@@ -105,6 +105,14 @@
         <span class="nav-badge" id="badge-support-count">0</span>
       </a>
 
+      <a class="nav-link" data-target="view-tenants">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Toptancılar & Lisanslar
+        </div>
+        <span class="nav-badge" id="badge-tenants-count" style="background:#6366f1; color:#fff;">0</span>
+      </a>
+
       <a class="nav-link" data-target="view-backups">
         <div class="nav-link-left">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
@@ -741,7 +749,69 @@
       </section>
 
       <!-- ======================================================================
-           SAYFA 9: BULUT SİSTEM YEDEKLERİ
+           SAYFA 9: TOPTANCILAR & LİSANS YÖNETİM MASASI
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-tenants">
+        <!-- İstatistik Şeridi -->
+        <div class="kpi-grid" style="margin-bottom:18px;">
+          <div class="kpi-card">
+            <div class="kpi-title">Kayıtlı Toptancı</div>
+            <div class="kpi-value" id="kpi-tenants-total">0</div>
+            <div class="kpi-sub">Sisteme kaydolan bayiler</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Aktif Lisanslar</div>
+            <div class="kpi-value text-emerald" id="kpi-tenants-active">0</div>
+            <div class="kpi-sub">30 Günlük & Sınırsız</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">Bekleyen Kayıtlar</div>
+            <div class="kpi-value text-amber" id="kpi-tenants-pending">0</div>
+            <div class="kpi-sub">Lisans anahtarı bekleyenler</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-title">7 Günlük Ek Sürede</div>
+            <div class="kpi-value text-rose" id="kpi-tenants-grace">0</div>
+            <div class="kpi-sub">Ödeme bekleyen toptancılar</div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <div class="card-header-bar">
+            <div class="card-title-group">
+              <h3>🏢 Toptancılar & Lisans Masası</h3>
+              <p>Saha satış uygulamasına kaydolan toptancıların lisans sürelerini, cihaz kilitlerini ve ödeme durumlarını yönetin</p>
+            </div>
+            <div class="card-actions">
+              <button type="button" class="btn-tbl btn-tbl-primary" id="btn-refresh-tenants">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Yenile
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr>
+                  <th>Şirket / Toptancı</th>
+                  <th>Yetkili Kişi & Telefon</th>
+                  <th>Cihaz Parmak İzi</th>
+                  <th>Lisans Türü & Anahtar</th>
+                  <th>Süre Durumu</th>
+                  <th style="text-align:center;">İşlemler</th>
+                </tr>
+              </thead>
+              <tbody id="tenants-page-tbody">
+                <!-- JS Doldurur -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 10: BULUT SİSTEM YEDEKLERİ
            ====================================================================== -->
       <section class="admin-page-view" id="view-backups">
         <div class="admin-card">
@@ -1074,6 +1144,51 @@
       <div class="modal-footer-bar">
         <button type="button" class="btn-modal-cancel" data-close="modal-finance-item">Vazgeç</button>
         <button type="button" class="btn-modal-save" id="btn-save-finance-db">Kaydet</button>
+      </div>
+    </div>
+  <!-- ==========================================================================
+       MODAL: LİSANS ANAHTARI ATA & YENİLE
+       ========================================================================== -->
+  <div class="admin-modal-overlay" id="modal-assign-license">
+    <div class="admin-modal-card" style="max-width:480px;">
+      <div class="modal-header-bar">
+        <div class="modal-header-left">
+          <h3 id="m-lic-company-title">Lisans Anahtarı Belirle</h3>
+          <p>Toptancı için 30 Günlük veya Sınırsız lisans üretin</p>
+        </div>
+        <button class="modal-close-btn" data-close="modal-assign-license">&times;</button>
+      </div>
+
+      <div class="modal-body-scroll">
+        <input type="hidden" id="m-lic-tenant-id" />
+        
+        <div class="form-group">
+          <label class="form-label">Lisans Türü</label>
+          <select class="form-input" id="m-lic-type">
+            <option value="30_days">📅 30 Günlük Lisans (Uygulamaya girilince başlar)</option>
+            <option value="unlimited">♾️ Sınırsız / Ömür Boyu Lisans</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Üretilen Lisans Anahtarı</label>
+          <div style="display:flex; gap:8px;">
+            <input type="text" class="form-input" id="m-lic-key" readonly style="font-family:monospace; font-weight:800; font-size:1.05rem; letter-spacing:1px; color:#38bdf8;" />
+            <button type="button" class="btn-tbl btn-tbl-primary" id="btn-generate-new-key" title="Yeni Kod Üret">🔄</button>
+          </div>
+          <small style="color:#94a3b8; font-size:0.72rem; display:block; margin-top:4px;">
+            * Süre sayacı siz kodu oluşturduğunuzda değil, toptancı uygulamaya anahtarı girdiği an başlar.
+          </small>
+        </div>
+
+        <div id="m-lic-penalty-notice" style="display:none; background:rgba(245,158,11,0.1); border:1px solid #f59e0b; padding:8px 12px; border-radius:8px; font-size:0.75rem; color:#fcd34d;">
+          ⚠️ Bu toptancı önceki dönemde ödemeyi <strong id="m-lic-penalty-days">X gün</strong> geciktirdi. Yeni 30 günlük lisans verildiğinde geciken günler düşülecektir.
+        </div>
+      </div>
+
+      <div class="modal-footer-bar">
+        <button type="button" class="btn-modal-cancel" data-close="modal-assign-license">Vazgeç</button>
+        <button type="button" class="btn-modal-save" id="btn-save-license-assignment">Lisansı Ata & Aktif Et</button>
       </div>
     </div>
   </div>

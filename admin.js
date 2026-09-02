@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupSearchAndFilters();
   setupModalForms();
   setupSupportChat();
+  setupTenantLicenseEvents();
   setupGlobalTenantSelector();
 
   const refreshBtn = document.getElementById('btn-refresh-all');
@@ -1795,69 +1796,330 @@ function setupModalForms() {
       }
     };
   }
+}
 
-  // Toptancı Lisansı Kaydetme Butonu
-  const saveTenantBtn = document.getElementById('btn-save-tenant-db');
-  const addTenantBtn = document.getElementById('btn-add-new-tenant');
-  const genLicBtn = document.getElementById('btn-generate-lic-key');
+// ============================================================================
+// 10. TOPTANCILAR & LİSANS YÖNETİM SAYFASI MOTORU
+// ============================================================================
+function parseAdminTenantMeta(tenant) {
+  let meta = {};
+  try {
+    if (tenant.notes && tenant.notes.startsWith('{')) {
+      meta = JSON.parse(tenant.notes);
+    }
+  } catch (e) {}
 
-  if (addTenantBtn) {
-    addTenantBtn.onclick = () => openTenantEditModal(null);
-  }
+  return {
+    licenseType: tenant.license_type || meta.license_type || '30_days',
+    activatedAt: tenant.activated_at || meta.activated_at || null,
+    expiresAt: tenant.expires_at || meta.expires_at || null,
+    gracePeriodUntil: tenant.grace_period_until || meta.grace_period_until || null,
+    overdueDaysDeducted: tenant.overdue_days_deducted || meta.overdue_days_deducted || 0
+  };
+}
 
-  if (genLicBtn) {
-    genLicBtn.onclick = () => {
-      document.getElementById('m-tenant-license-key').value = generateLicenseKey();
-    };
-  }
+function renderTenantsPage() {
+  const tbody = document.getElementById('tenants-page-tbody');
+  if (!tbody) return;
 
-  if (saveTenantBtn) {
-    saveTenantBtn.onclick = async () => {
-      const id = document.getElementById('m-tenant-id').value.trim() || `tenant-${Date.now()}`;
-      const company = document.getElementById('m-tenant-company').value.trim();
-      const contact = document.getElementById('m-tenant-contact').value.trim();
-      const phone = document.getElementById('m-tenant-phone').value.trim();
-      const city = document.getElementById('m-tenant-city').value.trim();
-      const status = document.getElementById('m-tenant-status').value;
-      const licenseKey = document.getElementById('m-tenant-license-key').value.trim();
-      const resetDevice = document.getElementById('m-tenant-reset-device')?.checked;
+  const kpiTotal = document.getElementById('kpi-tenants-total');
+  const kpiActive = document.getElementById('kpi-tenants-active');
+  const kpiPending = document.getElementById('kpi-tenants-pending');
+  const kpiGrace = document.getElementById('kpi-tenants-grace');
 
-      if (!company || !licenseKey) {
-        alert("Lütfen firma adı ve lisans anahtarını eksiksiz giriniz!");
-        return;
-      }
+  const tenants = AppState.tenants || [];
+  const now = new Date();
 
-      try {
-        saveTenantBtn.disabled = true;
-        saveTenantBtn.textContent = "Kaydediliyor...";
+  let activeCount = 0;
+  let pendingCount = 0;
+  let graceCount = 0;
 
-        const record = {
-          tenant_id: id,
-          company_name: company,
-          contact_person: contact,
-          phone: phone,
-          city: city,
-          status: status,
-          license_key: licenseKey,
-          last_active_at: new Date().toISOString()
-        };
+  tbody.innerHTML = tenants.map(t => {
+    const meta = parseAdminTenantMeta(t);
+    const isSuspended = t.status === 'suspended';
 
-        if (resetDevice) {
-          record.bound_device_id = null;
-          record.bound_device_info = null;
+    let statusBadge = '';
+    let durationInfo = '';
+
+    if (isSuspended) {
+      statusBadge = '<span class="badge badge-rose" style="font-size:0.75rem;">🔒 Askıya Alındı (Kilitli)</span>';
+      durationInfo = '<span style="color:#fb7185; font-size:0.75rem;">Patron tarafından kapatıldı</span>';
+    } else if (!t.license_key || t.status === 'pending_license') {
+      pendingCount++;
+      statusBadge = '<span class="badge badge-amber" style="font-size:0.75rem;">⏳ Anahtar Bekliyor</span>';
+      durationInfo = '<span style="color:#facc15; font-size:0.75rem;">Yeni kayıt oldu, anahtar atanmalı</span>';
+    } else if (meta.licenseType === 'unlimited') {
+      activeCount++;
+      statusBadge = '<span class="badge badge-indigo" style="font-size:0.75rem;">♾️ Sınırsız (Ömür Boyu)</span>';
+      durationInfo = '<span style="color:#a5b4fc; font-size:0.75rem;">Süre sınırı yok</span>';
+    } else {
+      // 30 Günlük Lisans
+      if (!meta.activatedAt) {
+        pendingCount++;
+        statusBadge = '<span class="badge badge-amber" style="font-size:0.75rem;">⏳ Başlatılmadı</span>';
+        durationInfo = '<span style="color:#facc15; font-size:0.75rem;">Uygulamaya girilince 30 gün başlar</span>';
+      } else {
+        const expTime = new Date(meta.expiresAt);
+        const graceTime = meta.gracePeriodUntil ? new Date(meta.gracePeriodUntil) : new Date(expTime.getTime() + 7 * 86400000);
+
+        if (now <= expTime) {
+          activeCount++;
+          const daysLeft = Math.max(1, Math.ceil((expTime.getTime() - now.getTime()) / 86400000));
+          statusBadge = `<span class="badge badge-emerald" style="font-size:0.75rem;">🟢 Aktif (30 Günlük)</span>`;
+          durationInfo = `<strong style="color:#34d399; font-size:0.8rem;">${daysLeft} gün kaldı</strong><br><span style="font-size:0.68rem; color:#64748b;">Bitiş: ${expTime.toLocaleDateString('tr-TR')}</span>`;
+        } else if (now > expTime && now <= graceTime) {
+          graceCount++;
+          const graceDaysLeft = Math.max(1, Math.ceil((graceTime.getTime() - now.getTime()) / 86400000));
+          const overdueDays = Math.max(1, Math.ceil((now.getTime() - expTime.getTime()) / 86400000));
+          statusBadge = `<span class="badge badge-amber" style="font-size:0.75rem; background:rgba(245,158,11,0.25); color:#fbbf24; border:1px solid #f59e0b;">⚠️ 7 Günlük Ek Sürede</span>`;
+          durationInfo = `<strong style="color:#fbbf24; font-size:0.8rem;">${graceDaysLeft} gün sonra kilitlenir!</strong><br><span style="font-size:0.68rem; color:#f87171;">Gecikme: ${overdueDays} gün (kesilecek)</span>`;
+        } else {
+          statusBadge = `<span class="badge badge-rose" style="font-size:0.75rem;">⛔ Ek Süre Doldu (Kilitli)</span>`;
+          durationInfo = `<span style="color:#fb7185; font-size:0.75rem;">7 günlük süre aşıldı, ödeme bekliyor</span>`;
         }
-
-        await db.post('tenants', record, true);
-        showToast(`"${company}" toptancı lisansı başarıyla kaydedildi!`);
-        document.getElementById('modal-tenant-edit').classList.remove('open');
-        await loadAllDataFromSupabase();
-      } catch (err) {
-        alert(`Toptancı kayıt hatası: ${err.message}`);
-      } finally {
-        saveTenantBtn.disabled = false;
-        saveTenantBtn.textContent = "Toptancı Lisansını Kaydet";
       }
+    }
+
+    const regDate = t.created_at ? new Date(t.created_at).toLocaleDateString('tr-TR') : '-';
+    const keyDisplay = t.license_key ? `<span style="font-family:monospace; font-weight:800; color:#38bdf8; font-size:0.8rem; background:rgba(56,189,248,0.1); padding:2px 6px; border-radius:4px;">${t.license_key}</span>` : '<span style="color:#64748b; font-size:0.75rem;">Atanmadı</span>';
+    const deviceDisplay = t.bound_device_id ? `<span style="font-family:monospace; font-size:0.72rem; color:#94a3b8;">${t.bound_device_id}</span>` : '<span style="color:#64748b; font-size:0.72rem;">Henüz Giriş Yapılmadı</span>';
+
+    return `
+      <tr>
+        <td>
+          <strong style="color:#ffffff; font-size:0.9rem; display:block;">${escapeHtml(t.company_name)}</strong>
+          <span style="font-size:0.72rem; color:#64748b;">Kayıt: ${regDate}</span>
+        </td>
+        <td>
+          <div style="font-weight:700; color:#cbd5e1; font-size:0.85rem;">${escapeHtml(t.contact_person || '-')}</div>
+          <div style="font-size:0.75rem; color:#38bdf8;">📞 ${escapeHtml(t.phone || '-')}</div>
+        </td>
+        <td>${deviceDisplay}</td>
+        <td>
+          <div style="margin-bottom:2px;">${statusBadge}</div>
+          <div>${keyDisplay}</div>
+        </td>
+        <td>${durationInfo}</td>
+        <td style="text-align:center;">
+          <div style="display:inline-flex; gap:6px; flex-wrap:wrap; justify-content:center;">
+            <button type="button" class="btn-tbl btn-tbl-primary" onclick="openAssignLicenseModal('${t.tenant_id}')" title="Lisans Ata veya Süre Yenile">
+              🔑 Lisans Ata
+            </button>
+            <button type="button" class="btn-tbl ${isSuspended ? 'btn-tbl-success' : 'btn-tbl-danger'}" onclick="toggleTenantStatus('${t.tenant_id}')" title="${isSuspended ? 'Kilidi Aç' : 'Erişimi Askıya Al'}">
+              ${isSuspended ? '🔓 Kilidi Aç' : '🔒 Kilitle'}
+            </button>
+            <button type="button" class="btn-tbl btn-tbl-secondary" onclick="resetTenantDevice('${t.tenant_id}')" title="Cihaz Parmak İzini Sıfırla (Yeni telefona izin ver)">
+              🔄 Cihaz Sıfırla
+            </button>
+            <button type="button" class="btn-tbl btn-tbl-danger" onclick="deleteTenantRecord('${t.tenant_id}')" title="Toptancıyı Sistemden Sil">
+              🗑️
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (tenants.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding:30px; color:#64748b;">
+          Henüz kayıtlı toptancı bulunmuyor. Toptancı saha uygulamasını açtığında kayıt formu doldurarak buraya düşecektir.
+        </td>
+      </tr>
+    `;
+  }
+
+  if (kpiTotal) kpiTotal.textContent = tenants.length;
+  if (kpiActive) kpiActive.textContent = activeCount;
+  if (kpiPending) kpiPending.textContent = pendingCount;
+  if (kpiGrace) kpiGrace.textContent = graceCount;
+}
+
+function openAssignLicenseModal(tenantId) {
+  const modal = document.getElementById('modal-assign-license');
+  const tIdInp = document.getElementById('m-lic-tenant-id');
+  const titleEl = document.getElementById('m-lic-company-title');
+  const typeSel = document.getElementById('m-lic-type');
+  const penaltyBox = document.getElementById('m-lic-penalty-notice');
+  const penaltyDaysEl = document.getElementById('m-lic-penalty-days');
+
+  const tenant = AppState.tenants.find(x => x.tenant_id === tenantId);
+  if (!tenant || !modal) return;
+
+  if (tIdInp) tIdInp.value = tenantId;
+  if (titleEl) titleEl.textContent = `Lisans: ${tenant.company_name}`;
+
+  const meta = parseAdminTenantMeta(tenant);
+  if (typeSel) typeSel.value = meta.licenseType || '30_days';
+
+  generateNewLicenseKey(typeSel ? typeSel.value : '30_days');
+
+  const now = new Date();
+  if (meta.expiresAt && now > new Date(meta.expiresAt)) {
+    const overdue = Math.min(7, Math.ceil((now.getTime() - new Date(meta.expiresAt).getTime()) / 86400000));
+    if (penaltyBox && penaltyDaysEl && overdue > 0) {
+      penaltyDaysEl.textContent = `${overdue} gün`;
+      penaltyBox.style.display = 'block';
+    }
+  } else if (penaltyBox) {
+    penaltyBox.style.display = 'none';
+  }
+
+  modal.classList.add('open');
+}
+
+function generateNewLicenseKey(type) {
+  const keyInp = document.getElementById('m-lic-key');
+  if (!keyInp) return;
+  const rand1 = Math.floor(1000 + Math.random() * 9000);
+  const rand2 = Math.floor(1000 + Math.random() * 9000);
+  if (type === 'unlimited') {
+    keyInp.value = `LIC-INF-${rand1}-${rand2}`;
+  } else {
+    keyInp.value = `LIC-30D-${rand1}-${rand2}`;
+  }
+}
+
+async function saveLicenseAssignment() {
+  const modal = document.getElementById('modal-assign-license');
+  const tIdInp = document.getElementById('m-lic-tenant-id');
+  const typeSel = document.getElementById('m-lic-type');
+  const keyInp = document.getElementById('m-lic-key');
+  const saveBtn = document.getElementById('btn-save-license-assignment');
+
+  const tenantId = tIdInp ? tIdInp.value : '';
+  const licenseType = typeSel ? typeSel.value : '30_days';
+  const newKey = keyInp ? keyInp.value.trim().toUpperCase() : '';
+
+  if (!tenantId || !newKey) {
+    alert("Geçerli bir lisans anahtarı oluşturulamadı!");
+    return;
+  }
+
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Kaydediliyor...";
+    }
+
+    const tenant = AppState.tenants.find(x => x.tenant_id === tenantId);
+    const meta = tenant ? parseAdminTenantMeta(tenant) : {};
+
+    let overduePenalty = 0;
+    const now = new Date();
+    if (meta.expiresAt && now > new Date(meta.expiresAt)) {
+      overduePenalty = Math.min(7, Math.ceil((now.getTime() - new Date(meta.expiresAt).getTime()) / 86400000));
+    }
+
+    const payload = {
+      license_key: newKey,
+      status: 'active',
+      // Süre sayacı Admin oluşturduğunda değil, toptancı uygulamada girdiğinde başlar!
+      activated_at: null,
+      expires_at: null,
+      grace_period_until: null,
+      bound_device_id: null,
+      notes: JSON.stringify({
+        license_type: licenseType,
+        assigned_at: new Date().toISOString(),
+        activated_at: null,
+        overdue_days_deducted: overduePenalty
+      })
     };
+
+    await db.patch('tenants', `tenant_id=eq.${encodeURIComponent(tenantId)}`, payload);
+
+    showToast(`✅ Lisans atandı! Anahtar: ${newKey}`);
+    if (modal) modal.classList.remove('open');
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`Lisans atama hatası: ${err.message}`);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Lisansı Ata & Aktif Et";
+    }
+  }
+}
+
+async function toggleTenantStatus(tenantId) {
+  const tenant = AppState.tenants.find(x => x.tenant_id === tenantId);
+  if (!tenant) return;
+
+  const newStatus = tenant.status === 'suspended' ? 'active' : 'suspended';
+  const actionText = newStatus === 'suspended' ? 'askıya almak (kilitlemek)' : 'kilidini açmak';
+
+  if (!confirm(`"${tenant.company_name}" sistem erişimini ${actionText} istediğinize emin misiniz?`)) {
+    return;
+  }
+
+  try {
+    await db.patch('tenants', `tenant_id=eq.${encodeURIComponent(tenantId)}`, { status: newStatus });
+    showToast(`Durum güncellendi: ${newStatus === 'suspended' ? '🔒 Kilitlendi' : '🔓 Açıldı'}`);
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`Hata: ${err.message}`);
+  }
+}
+
+async function resetTenantDevice(tenantId) {
+  const tenant = AppState.tenants.find(x => x.tenant_id === tenantId);
+  if (!tenant) return;
+
+  if (!confirm(`"${tenant.company_name}" için kayıtlı cihaz kilidini sıfırlamak istiyor musunuz? (Toptancı yeni bir telefondan giriş yapabilecek)`)) {
+    return;
+  }
+
+  try {
+    await db.patch('tenants', `tenant_id=eq.${encodeURIComponent(tenantId)}`, {
+      bound_device_id: null,
+      bound_device_info: null
+    });
+    showToast(`Cihaz kilidi sıfırlandı! Toptancı yeni telefonundan lisansını girebilir.`);
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`Hata: ${err.message}`);
+  }
+}
+
+async function deleteTenantRecord(tenantId) {
+  const tenant = AppState.tenants.find(x => x.tenant_id === tenantId);
+  if (!tenant) return;
+
+  if (!confirm(`"${tenant.company_name}" toptancısını ve tüm lisans bilgilerini sistemden tamamen silmek istediğinize emin misiniz?`)) {
+    return;
+  }
+
+  try {
+    await db.delete('tenants', `tenant_id=eq.${encodeURIComponent(tenantId)}`);
+    showToast(`Toptancı sistemden silindi.`);
+    await loadAllDataFromSupabase();
+  } catch (err) {
+    alert(`Hata: ${err.message}`);
+  }
+}
+
+function setupTenantLicenseEvents() {
+  const refreshTenantsBtn = document.getElementById('btn-refresh-tenants');
+  const genKeyBtn = document.getElementById('btn-generate-new-key');
+  const saveLicBtn = document.getElementById('btn-save-license-assignment');
+  const typeSel = document.getElementById('m-lic-type');
+
+  if (refreshTenantsBtn) {
+    refreshTenantsBtn.onclick = () => loadAllDataFromSupabase(true);
+  }
+
+  if (genKeyBtn && typeSel) {
+    genKeyBtn.onclick = () => generateNewLicenseKey(typeSel.value);
+  }
+
+  if (typeSel) {
+    typeSel.onchange = () => generateNewLicenseKey(typeSel.value);
+  }
+
+  if (saveLicBtn) {
+    saveLicBtn.onclick = saveLicenseAssignment;
   }
 }
 

@@ -1,6 +1,6 @@
 /**
- * TOPTANCI SATIŞ SİSTEMİ - GELİŞMİŞ SİGARA SATIŞ, ÖZEL FİYATLANDIRMA, GRAFİK ANALİZİ, PDF & WHATSAPP
- * Geliştirici: Antigravity AI | Kullanıcı: Ramazan Türk
+ * TOPTANCI SATIŞ VE YÖNETİM SİSTEMİ - ANA MOTOR (app.js)
+ * Geliştirici: Antigravity AI | Çoklu Toptancı Lisanslı Sürüm
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -9196,12 +9196,14 @@ window.resetTestDataForRestoreDemo = function() {
 })();
 
 // ============================================================================
-// DONANIM CİHAZ KİLİDİ & AÇILIŞTA GEÇİLEMEZ LİSANS MOTORU
+// DONANIM CİHAZ KİLİDİ, ONBOARDING KAYIT, SAYAÇ BAŞLATMA & 7 GÜNLÜK EK SÜRE MOTORU
 // ============================================================================
 (function initHardwareLicenseEngine() {
   const DEVICE_STORAGE_KEY = 'wholesaler_device_hardware_uuid';
   const LICENSE_STORAGE_KEY = 'wholesaler_active_license_key';
   const TENANT_STORAGE_KEY = 'wholesaler_active_tenant_id';
+  const REGISTRATION_STORAGE_KEY = 'wholesaler_registration_data';
+  const PENALTY_STORAGE_KEY = 'wholesaler_penalty_days';
 
   function getOrCreateDeviceId() {
     let deviceId = localStorage.getItem(DEVICE_STORAGE_KEY);
@@ -9216,6 +9218,64 @@ window.resetTestDataForRestoreDemo = function() {
 
   const deviceId = getOrCreateDeviceId();
 
+  function parseTenantMetadata(tenant) {
+    let meta = {};
+    try {
+      if (tenant.notes && tenant.notes.startsWith('{')) {
+        meta = JSON.parse(tenant.notes);
+      }
+    } catch (e) {}
+
+    return {
+      licenseType: tenant.license_type || meta.license_type || '30_days',
+      activatedAt: tenant.activated_at || meta.activated_at || null,
+      expiresAt: tenant.expires_at || meta.expires_at || null,
+      gracePeriodUntil: tenant.grace_period_until || meta.grace_period_until || null,
+      overdueDaysDeducted: tenant.overdue_days_deducted || meta.overdue_days_deducted || 0
+    };
+  }
+
+  function applyWholesalerBranding(tenant) {
+    if (!tenant) return;
+    const contactPerson = tenant.contact_person || 'Yetkili';
+    const companyName = tenant.company_name || 'Toptan Satış';
+    const phone = tenant.phone || '';
+
+    // 1. Topbar
+    const welcomeEl = document.getElementById('topbar-user-welcome');
+    if (welcomeEl) welcomeEl.textContent = `Hoş geldin, ${contactPerson}`;
+
+    const avatarEl = document.getElementById('topbar-user-avatar');
+    if (avatarEl) {
+      const parts = contactPerson.trim().split(' ');
+      const initials = parts.length > 1 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : contactPerson.substring(0, 2).toUpperCase();
+      avatarEl.textContent = initials || 'TS';
+    }
+
+    // 2. Drawer
+    const drawerName = document.getElementById('drawer-user-name');
+    const drawerRole = document.getElementById('drawer-user-role');
+    if (drawerName) drawerName.textContent = companyName;
+    if (drawerRole) {
+      const meta = parseTenantMetadata(tenant);
+      const typeLabel = meta.licenseType === 'unlimited' ? 'Sınırsız' : '30 Günlük';
+      drawerRole.textContent = `Lisans: ${tenant.license_key || 'Kayıtlı'} (${typeLabel})`;
+    }
+
+    // 3. Fatura & Rapor Üst Bilgisi
+    const invBrand = document.getElementById('inv-header-brand');
+    const invCompany = document.getElementById('inv-header-company');
+    const invPhone = document.getElementById('inv-header-phone');
+    if (invBrand) invBrand.textContent = companyName.toUpperCase();
+    if (invCompany) invCompany.textContent = `Merkez Dağıtım & Sevkiyat • Yetkili: ${contactPerson}`;
+    if (invPhone) invPhone.textContent = phone ? `Tel: ${phone}` : 'İletişim & Sevkiyat Ağı';
+
+    const repBrand = document.getElementById('report-header-brand');
+    const repCompany = document.getElementById('report-header-company');
+    if (repBrand) repBrand.textContent = companyName.toUpperCase();
+    if (repCompany) repCompany.textContent = `Yetkili: ${contactPerson} • Genel Sevkiyat & Kârlılık Raporu`;
+  }
+
   async function checkLicenseStatus(isUserInitiated = false) {
     const modalGate = document.getElementById('modal-license-gate');
     const alertBox = document.getElementById('lic-gate-alert');
@@ -9223,25 +9283,35 @@ window.resetTestDataForRestoreDemo = function() {
     const keyInp = document.getElementById('input-license-key');
     const actBtn = document.getElementById('btn-activate-license');
     const devPrint = document.getElementById('display-device-fingerprint');
-    const titleEl = document.getElementById('lic-gate-title');
-    const descEl = document.getElementById('lic-gate-desc');
-    const inputBox = document.getElementById('lic-gate-input-box');
     const closeGateBtn = document.getElementById('btn-close-license-gate');
+    const stepRegister = document.getElementById('lic-step-register');
+    const stepKey = document.getElementById('lic-step-key');
+    const graceModal = document.getElementById('modal-grace-warning');
+    const graceDaysText = document.getElementById('grace-days-left-text');
 
     if (!modalGate) return;
     if (devPrint) devPrint.textContent = deviceId;
 
+    const regDataRaw = localStorage.getItem(REGISTRATION_STORAGE_KEY);
     const savedKey = (localStorage.getItem(LICENSE_STORAGE_KEY) || '').trim().toUpperCase();
 
-    // 1. Kural: Lisans anahtarı hiç girilmemişse -> KİLİT ASLA KALKMAZ
+    // 1. KONTROL: Henüz Kayıt Olunmamışsa -> ADIM 1: Kayıt Formunu Göster
+    if (!regDataRaw && !savedKey) {
+      modalGate.style.display = 'flex';
+      modalGate.classList.remove('hidden');
+      if (closeGateBtn) closeGateBtn.style.display = 'none';
+      if (stepRegister) stepRegister.style.display = 'block';
+      if (stepKey) stepKey.style.display = 'none';
+      return false;
+    }
+
+    // 2. KONTROL: Kayıt var ama lisans anahtarı henüz girilmemişse -> ADIM 2: Anahtar Girişini Göster
     if (!savedKey) {
       modalGate.style.display = 'flex';
       modalGate.classList.remove('hidden');
-      if (closeGateBtn) closeGateBtn.style.display = 'none'; // Kapatma butonu yok
-      if (inputBox) inputBox.style.display = 'block';
-      if (actBtn) actBtn.style.display = 'flex';
-      if (titleEl) titleEl.textContent = 'Sistem Aktivasyonu & Lisans';
-      if (descEl) descEl.textContent = 'Bu yazılım kaçak kullanımı engellemek için lisans kilidiyle korunmaktadır. Lütfen yöneticinizden (Patron) aldığınız lisans anahtarını giriniz.';
+      if (closeGateBtn) closeGateBtn.style.display = 'none';
+      if (stepRegister) stepRegister.style.display = 'none';
+      if (stepKey) stepKey.style.display = 'block';
       return false;
     }
 
@@ -9251,7 +9321,7 @@ window.resetTestDataForRestoreDemo = function() {
         actBtn.querySelector('span').textContent = 'Lisans Doğrulanıyor...';
       }
 
-      // Supabase'den sorgula
+      // Supabase'den bu lisansı sorgula
       const res = await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants?license_key=eq.${encodeURIComponent(savedKey)}&select=*`, {
         headers: {
           'apikey': 'sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
@@ -9265,56 +9335,92 @@ window.resetTestDataForRestoreDemo = function() {
 
       const tenants = await res.json();
       if (!Array.isArray(tenants) || tenants.length === 0) {
-        // Geçersiz / Silinmiş lisans
         modalGate.style.display = 'flex';
         modalGate.classList.remove('hidden');
         if (closeGateBtn) closeGateBtn.style.display = 'none';
+        if (stepRegister) stepRegister.style.display = 'none';
+        if (stepKey) stepKey.style.display = 'block';
         if (alertBox) {
           alertBox.style.display = 'block';
-          alertText.textContent = '❌ GEÇERSİZ LİSANS! Yönetici (Patron) panelinde bu lisans kodu kayıtlı değil.';
+          alertText.textContent = '❌ GEÇERSİZ LİSANS! Yönetici (Patron) panelinde bu lisans kodu bulunamadı.';
         }
-        if (inputBox) inputBox.style.display = 'block';
-        if (actBtn) actBtn.style.display = 'flex';
         localStorage.removeItem(TENANT_STORAGE_KEY);
         return false;
       }
 
       const tenant = tenants[0];
+      const meta = parseTenantMetadata(tenant);
 
-      // KONTROL 1: Toptancı Patron tarafından askıya alınmış mı?
+      // KONTROL 1: Patron Tarafından Askıya Alınmış mı?
       if (tenant.status === 'suspended') {
         modalGate.style.display = 'flex';
         modalGate.classList.remove('hidden');
         if (closeGateBtn) closeGateBtn.style.display = 'none';
-        if (titleEl) titleEl.textContent = '🔒 Erişim Askıya Alındı';
-        if (descEl) descEl.textContent = `"${tenant.company_name}" için sistem erişimi yönetici (Patron) tarafından geçici olarak kilitlenmiştir. Kaçak veya izinsiz kullanım engellenmiştir.`;
+        if (stepRegister) stepRegister.style.display = 'none';
+        if (stepKey) stepKey.style.display = 'none';
         if (alertBox) {
           alertBox.style.display = 'block';
-          alertText.textContent = '⛔ SİSTEM KİLİTLİDİR. Lütfen yöneticiniz ile iletişime geçiniz.';
+          alertText.textContent = `⛔ SİSTEM KİLİTLİDİR: "${tenant.company_name}" için erişim yönetici tarafından geçici olarak durdurulmuştur.`;
         }
-        if (inputBox) inputBox.style.display = 'none';
-        if (actBtn) actBtn.style.display = 'none';
         return false;
       }
 
-      // KONTROL 2: Başka cihaza kilitli mi? (Kaçak Kopyalama Koruması)
+      // KONTROL 2: Cihaz Donanım Kilidi (Başka telefona kopyalama)
       if (tenant.bound_device_id && tenant.bound_device_id !== deviceId) {
         modalGate.style.display = 'flex';
         modalGate.classList.remove('hidden');
         if (closeGateBtn) closeGateBtn.style.display = 'none';
-        if (titleEl) titleEl.textContent = '⛔ Yetkisiz Cihaz (Kaçak Kopyalama)';
-        if (descEl) descEl.textContent = `Bu lisans anahtarı başka bir telefona mühürlenmiştir! Sistemi başka telefona kopyalayamazsınız. Telefon değiştirdiyseniz yöneticinizden cihaz kilidini sıfırlamasını isteyiniz.`;
         if (alertBox) {
           alertBox.style.display = 'block';
-          alertText.textContent = `HATA: Lisans farklı bir cihazla mühürlü! (${tenant.bound_device_id})`;
+          alertText.textContent = `⛔ YETKİSİZ CİHAZ! Bu lisans farklı bir telefona mühürlenmiştir. (${tenant.bound_device_id})`;
         }
-        if (inputBox) inputBox.style.display = 'none';
-        if (actBtn) actBtn.style.display = 'none';
         return false;
       }
 
-      // İLK GİRİŞ: Cihazı lisansa mühürle
-      if (!tenant.bound_device_id) {
+      // ======================================================================
+      // 3. SAYAÇ BAŞLATMA MANTIĞI: Uygulamaya girilmeden süre başlamasın!
+      // ======================================================================
+      let expiresAt = meta.expiresAt;
+      let graceUntil = meta.gracePeriodUntil;
+      let overdueDeducted = meta.overdueDaysDeducted || 0;
+
+      if (!meta.activatedAt) {
+        // Toptancı ilk kez şimdi giriş yapıyor -> Süre tam bu anda başlar!
+        const now = new Date();
+        let totalDays = 30;
+
+        // Eğer bu cihaz önceki dönemde ödemeyi K gün geciktirdiyse, 30 günden düş!
+        const penaltyDays = parseInt(localStorage.getItem(PENALTY_STORAGE_KEY) || '0', 10);
+        if (penaltyDays > 0 && meta.licenseType === '30_days') {
+          totalDays = Math.max(1, 30 - penaltyDays);
+          overdueDeducted = penaltyDays;
+          localStorage.removeItem(PENALTY_STORAGE_KEY); // Cezayı düş ve sıfırla
+        }
+
+        if (meta.licenseType === '30_days') {
+          expiresAt = new Date(now.getTime() + totalDays * 24 * 60 * 60 * 1000).toISOString();
+          graceUntil = new Date(new Date(expiresAt).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        } else {
+          // Sınırsız Lisans
+          expiresAt = null;
+          graceUntil = null;
+        }
+
+        const updatePayload = {
+          bound_device_id: deviceId,
+          bound_device_info: (navigator.userAgent || 'Mobil Cihaz').substring(0, 60),
+          status: 'active',
+          expires_at: expiresAt,
+          last_active_at: now.toISOString(),
+          notes: JSON.stringify({
+            license_type: meta.licenseType,
+            activated_at: now.toISOString(),
+            expires_at: expiresAt,
+            grace_period_until: graceUntil,
+            overdue_days_deducted: overdueDeducted
+          })
+        };
+
         await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants?tenant_id=eq.${encodeURIComponent(tenant.tenant_id)}`, {
           method: 'PATCH',
           headers: {
@@ -9323,53 +9429,168 @@ window.resetTestDataForRestoreDemo = function() {
             'Content-Type': 'application/json',
             'Prefer': 'return=minimal'
           },
-          body: JSON.stringify({
-            bound_device_id: deviceId,
-            bound_device_info: (navigator.userAgent || 'Mobil Cihaz').substring(0, 60),
-            last_active_at: new Date().toISOString()
-          })
+          body: JSON.stringify(updatePayload)
         });
+
+        meta.activatedAt = now.toISOString();
+        meta.expiresAt = expiresAt;
+        meta.gracePeriodUntil = graceUntil;
       }
 
-      // BAŞARILI: KİLİDİ KALDIR VE UYGULAMAYI AÇ
+      // ======================================================================
+      // 4. SÜRE VE 7 GÜNLÜK HOŞGÖRÜ EK SÜRE KONTROLÜ
+      // ======================================================================
+      const nowTime = new Date();
+      if (meta.licenseType === '30_days' && expiresAt) {
+        const expTime = new Date(expiresAt);
+        const graceTime = graceUntil ? new Date(graceUntil) : new Date(expTime.getTime() + 7 * 86400000);
+
+        if (nowTime > expTime && nowTime <= graceTime) {
+          // 30 gün doldu, ancak 7 GÜNLÜK EK SÜREDE: Kilit yok, uyarı var!
+          const remainingGraceMs = graceTime.getTime() - nowTime.getTime();
+          const remainingGraceDays = Math.max(1, Math.ceil(remainingGraceMs / 86400000));
+          const daysOverdue = Math.max(1, Math.ceil((nowTime.getTime() - expTime.getTime()) / 86400000));
+
+          // Yeni lisanstan düşülmek üzere gecikme gün sayısını hafızaya al
+          localStorage.setItem(PENALTY_STORAGE_KEY, daysOverdue.toString());
+
+          if (graceModal && graceDaysText) {
+            graceDaysText.textContent = `${remainingGraceDays} gün`;
+            graceModal.style.display = 'flex';
+          }
+        } else if (nowTime > graceTime) {
+          // 7 GÜNLÜK EK SÜRE DE DOLDU -> TAM KİLİT!
+          const daysOverdue = Math.min(7, Math.ceil((nowTime.getTime() - expTime.getTime()) / 86400000));
+          localStorage.setItem(PENALTY_STORAGE_KEY, daysOverdue.toString());
+
+          modalGate.style.display = 'flex';
+          modalGate.classList.remove('hidden');
+          if (closeGateBtn) closeGateBtn.style.display = 'none';
+          if (stepRegister) stepRegister.style.display = 'none';
+          if (stepKey) stepKey.style.display = 'block';
+          if (alertBox) {
+            alertBox.style.display = 'block';
+            alertText.textContent = '⛔ 7 GÜNLÜK EK SÜRE DOLDU! Sistem kilitlenmiştir. Hizmet almaya devam etmek için lütfen yöneticiniz ile iletişime geçip yeni anahtarınızı alınız.';
+          }
+          return false;
+        }
+      }
+
+      // BAŞARILI: UYGULAMAYI AÇ VE KULLANICI BİLGİLERİNİ YANSIT
       localStorage.setItem(TENANT_STORAGE_KEY, tenant.tenant_id);
       window.CURRENT_TENANT_ID = tenant.tenant_id;
       modalGate.classList.add('hidden');
       modalGate.style.display = 'none';
       if (closeGateBtn) closeGateBtn.style.display = 'block';
 
-      // Toptancı İsmini Yaz
-      const adminNameEl = document.querySelector('.admin-info .name');
-      const adminRoleEl = document.querySelector('.admin-info .role');
-      if (adminNameEl) adminNameEl.textContent = tenant.company_name;
-      if (adminRoleEl) adminRoleEl.textContent = `Lisans: ${tenant.license_key} (${tenant.city || 'Yetkili'})`;
+      applyWholesalerBranding(tenant);
 
       if (isUserInitiated && typeof showAppToast === 'function') {
-        showAppToast(`✅ Lisans Doğrulandı: ${tenant.company_name} bu cihaza mühürlendi.`, 'success');
+        const typeMsg = meta.licenseType === 'unlimited' ? 'Sınırsız Lisans' : '30 Günlük Lisans';
+        showAppToast(`✅ ${tenant.company_name} için ${typeMsg} aktif edildi!`, 'success');
       }
 
       return true;
 
     } catch (err) {
-      console.warn("Lisans doğrulama hatası:", err);
-      // Eğer daha önce doğrulanmış bir anahtar varsa offline geçici tolerans tanı, ama hiç doğrulanmamışsa ASLA AÇMA
+      console.warn("Lisans kontrol uyarısı:", err);
       if (savedKey && localStorage.getItem(TENANT_STORAGE_KEY)) {
         modalGate.classList.add('hidden');
         modalGate.style.display = 'none';
         return true;
-      } else {
-        modalGate.style.display = 'flex';
-        modalGate.classList.remove('hidden');
-        if (alertBox) {
-          alertBox.style.display = 'block';
-          alertText.textContent = 'Lisans sunucusuna bağlanılamadı. İlk aktivasyon için internet bağlantısı gereklidir.';
-        }
-        return false;
       }
+      return false;
     } finally {
       if (actBtn && isUserInitiated) {
         actBtn.disabled = false;
         actBtn.querySelector('span').textContent = 'Cihazı Mühürle & Giriş Yap';
+      }
+    }
+  }
+
+  // YENİ TOPTANCI KAYIT FORMU GÖNDERİMİ
+  async function handleWholesalerRegistration() {
+    const contactInp = document.getElementById('reg-contact-person');
+    const companyInp = document.getElementById('reg-company-name');
+    const phoneInp = document.getElementById('reg-phone');
+    const submitBtn = document.getElementById('btn-submit-registration');
+    const alertBox = document.getElementById('lic-gate-alert');
+    const alertText = document.getElementById('lic-gate-alert-text');
+    const stepRegister = document.getElementById('lic-step-register');
+    const stepKey = document.getElementById('lic-step-key');
+
+    const contactPerson = contactInp ? contactInp.value.trim() : '';
+    const companyName = companyInp ? companyInp.value.trim() : '';
+    const phone = phoneInp ? phoneInp.value.trim() : '';
+
+    if (!contactPerson || !companyName || !phone) {
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertText.textContent = 'Lütfen Yetkili Adı, Şirket İsmi ve Telefon numarasını eksiksiz doldurunuz!';
+      }
+      return;
+    }
+
+    try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Kayıt Yapılıyor...';
+      }
+
+      const tenantId = 'TNT-' + Math.floor(1000 + Math.random() * 9000);
+
+      const payload = {
+        tenant_id: tenantId,
+        company_name: companyName,
+        contact_person: contactPerson,
+        phone: phone,
+        status: 'pending_license',
+        bound_device_id: deviceId,
+        bound_device_info: (navigator.userAgent || 'Mobil Cihaz').substring(0, 60),
+        notes: JSON.stringify({
+          license_type: '30_days',
+          registered_at: new Date().toISOString()
+        })
+      };
+
+      const res = await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants`, {
+        method: 'POST',
+        headers: {
+          'apikey': 'sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
+          'Authorization': 'Bearer sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error("Kayıt sunucuya iletilemedi (HTTP " + res.status + ")");
+      }
+
+      // Yerel olarak kaydet
+      localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(payload));
+      localStorage.setItem(TENANT_STORAGE_KEY, tenantId);
+      window.CURRENT_TENANT_ID = tenantId;
+
+      if (alertBox) alertBox.style.display = 'none';
+      if (stepRegister) stepRegister.style.display = 'none';
+      if (stepKey) stepKey.style.display = 'block';
+
+      applyWholesalerBranding(payload);
+
+      showAppToast(`"${companyName}" kaydınız Patron paneline iletildi! Yöneticinizden anahtarınızı alınız.`, 'success');
+
+    } catch (err) {
+      console.warn("Kayıt iletim hatası:", err);
+      if (alertBox) {
+        alertBox.style.display = 'block';
+        alertText.textContent = `Kayıt oluşturulamadı: ${err.message}`;
+      }
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>🚀 Hesap Oluştur & Yöneticiye Gönder</span>`;
       }
     }
   }
@@ -9379,6 +9600,27 @@ window.resetTestDataForRestoreDemo = function() {
     const keyInp = document.getElementById('input-license-key');
     const alertBox = document.getElementById('lic-gate-alert');
     const alertText = document.getElementById('lic-gate-alert-text');
+    const submitRegBtn = document.getElementById('btn-submit-registration');
+    const switchToKeyBtn = document.getElementById('btn-switch-to-key');
+    const switchToRegBtn = document.getElementById('btn-switch-to-reg');
+    const stepRegister = document.getElementById('lic-step-register');
+    const stepKey = document.getElementById('lic-step-key');
+
+    if (submitRegBtn) submitRegBtn.onclick = handleWholesalerRegistration;
+
+    if (switchToKeyBtn) {
+      switchToKeyBtn.onclick = () => {
+        if (stepRegister) stepRegister.style.display = 'none';
+        if (stepKey) stepKey.style.display = 'block';
+      };
+    }
+
+    if (switchToRegBtn) {
+      switchToRegBtn.onclick = () => {
+        if (stepKey) stepKey.style.display = 'none';
+        if (stepRegister) stepRegister.style.display = 'block';
+      };
+    }
 
     if (actBtn) {
       actBtn.onclick = async () => {
@@ -9405,9 +9647,10 @@ window.resetTestDataForRestoreDemo = function() {
       };
     }
 
+    // İlk Kontrol
     checkLicenseStatus(false);
 
-    // Her 30 saniyede bir durumu kontrol et (Patron kilitlediyse anında kitlenir)
+    // Her 30 saniyede bir durumu kontrol et
     setInterval(() => {
       checkLicenseStatus(false);
     }, 30000);
@@ -9421,18 +9664,18 @@ window.resetTestDataForRestoreDemo = function() {
 
   function openLicenseModal() {
     const modalGate = document.getElementById('modal-license-gate');
-    const inputBox = document.getElementById('lic-gate-input-box');
-    const actBtn = document.getElementById('btn-activate-license');
-    const keyInp = document.getElementById('input-license-key');
     const devPrint = document.getElementById('display-device-fingerprint');
     const closeGateBtn = document.getElementById('btn-close-license-gate');
+    const stepRegister = document.getElementById('lic-step-register');
+    const stepKey = document.getElementById('lic-step-key');
+    const keyInp = document.getElementById('input-license-key');
 
     if (devPrint) devPrint.textContent = deviceId;
     if (modalGate) {
       modalGate.classList.remove('hidden');
       modalGate.style.display = 'flex';
-      if (inputBox) inputBox.style.display = 'block';
-      if (actBtn) actBtn.style.display = 'flex';
+      if (stepRegister) stepRegister.style.display = 'none';
+      if (stepKey) stepKey.style.display = 'block';
       if (closeGateBtn && localStorage.getItem(TENANT_STORAGE_KEY)) {
         closeGateBtn.style.display = 'block';
       }
@@ -9443,7 +9686,6 @@ window.resetTestDataForRestoreDemo = function() {
 
   function closeLicenseModal() {
     const modalGate = document.getElementById('modal-license-gate');
-    // Sadece lisanslı ise kapatılabilir
     if (modalGate && localStorage.getItem(TENANT_STORAGE_KEY)) {
       modalGate.classList.add('hidden');
       modalGate.style.display = 'none';
