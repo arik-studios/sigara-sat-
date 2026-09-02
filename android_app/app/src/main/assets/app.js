@@ -9084,6 +9084,33 @@ window.resetTestDataForRestoreDemo = function() {
     setupLicenseEvents();
   }
 
+  function openLicenseModal() {
+    const modalGate = document.getElementById('modal-license-gate');
+    const inputBox = document.getElementById('lic-gate-input-box');
+    const actBtn = document.getElementById('btn-activate-license');
+    const keyInp = document.getElementById('input-license-key');
+    const devPrint = document.getElementById('display-device-fingerprint');
+    if (devPrint) devPrint.textContent = deviceId;
+    if (modalGate) {
+      modalGate.classList.remove('hidden');
+      modalGate.style.display = 'flex';
+      if (inputBox) inputBox.style.display = 'block';
+      if (actBtn) actBtn.style.display = 'flex';
+      const savedKey = localStorage.getItem(LICENSE_STORAGE_KEY);
+      if (keyInp && savedKey) keyInp.value = savedKey;
+    }
+  }
+
+  function closeLicenseModal() {
+    const modalGate = document.getElementById('modal-license-gate');
+    if (modalGate) {
+      modalGate.classList.add('hidden');
+      modalGate.style.display = 'none';
+    }
+  }
+
+  window.openLicenseModal = openLicenseModal;
+  window.closeLicenseModal = closeLicenseModal;
   window.checkAppLicense = checkLicenseStatus;
   window.getAppDeviceId = () => deviceId;
 })();
