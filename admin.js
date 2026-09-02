@@ -22,6 +22,7 @@ class SupabaseService {
       'Authorization': `Bearer ${this.key}`,
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
+      'x-user-role': 'patron',
       ...custom
     };
   }

@@ -200,4 +200,102 @@ ALTER TABLE public.support_messages ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFA
 ALTER TABLE public.system_backups ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
 ALTER TABLE public.daily_history ADD COLUMN IF NOT EXISTS tenant_id TEXT DEFAULT 'default_tenant';
 
+-- ============================================================================
+-- VERİTABANI KERNEL DÜZEYİ İZOLASYON: ROW LEVEL SECURITY (RLS) POLİTİKALARI
+-- ============================================================================
+-- Bu kurallar sayesinde API doğrudan çağrılsa bile, istek başlığında (x-tenant-id)
+-- gönderilen toptancı ID haricindeki HİÇBİR SATIR veritabanından dışarı sızamaz.
+-- ============================================================================
+
+-- 1. BAYİLER
+ALTER TABLE public.dealers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_dealers" ON public.dealers;
+CREATE POLICY "tenant_isolation_dealers" ON public.dealers FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
+-- 2. DEPO STOKLARI
+ALTER TABLE public.inventory_stock ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_stock" ON public.inventory_stock;
+CREATE POLICY "tenant_isolation_stock" ON public.inventory_stock FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
+-- 3. ALIM İRSALİYELERİ
+ALTER TABLE public.warehouse_purchases ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_purchases" ON public.warehouse_purchases;
+CREATE POLICY "tenant_isolation_purchases" ON public.warehouse_purchases FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
+-- 4. MÜŞTERİ ALACAKLARI
+ALTER TABLE public.customer_receivables ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_receivables" ON public.customer_receivables;
+CREATE POLICY "tenant_isolation_receivables" ON public.customer_receivables FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
+-- 5. TEDARİKÇİ BORÇLARI
+ALTER TABLE public.payables ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_payables" ON public.payables;
+CREATE POLICY "tenant_isolation_payables" ON public.payables FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
+-- 6. DESTEK MESAJLARI
+ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_messages" ON public.support_messages;
+CREATE POLICY "tenant_isolation_messages" ON public.support_messages FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
+-- 7. SİSTEM BULUT YEDEKLERİ
+ALTER TABLE public.system_backups ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_isolation_backups" ON public.system_backups;
+CREATE POLICY "tenant_isolation_backups" ON public.system_backups FOR ALL TO public
+USING (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+)
+WITH CHECK (
+    coalesce(current_setting('request.headers', true)::json->>'x-user-role', '') = 'patron'
+    OR tenant_id = coalesce(current_setting('request.headers', true)::json->>'x-tenant-id', '')
+);
+
 

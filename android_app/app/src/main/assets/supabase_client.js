@@ -18,11 +18,13 @@ class SupabaseRestClient {
   }
 
   getHeaders(customHeaders = {}) {
+    const tenantId = (typeof getActiveTenantId === 'function') ? getActiveTenantId() : 'default_tenant';
     return {
       'apikey': this.key,
       'Authorization': `Bearer ${this.key}`,
       'Content-Type': 'application/json',
       'Prefer': 'return=representation',
+      'x-tenant-id': tenantId,
       ...customHeaders
     };
   }
