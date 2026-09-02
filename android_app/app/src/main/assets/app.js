@@ -398,6 +398,8 @@ function initDatabaseAndStorage() {
 
   deduplicateExistingDealers();
   checkDailyCutoff();
+  calculateDailyMetrics();
+  updateDashboardMetrics();
 }
 
 function deduplicateExistingDealers() {
@@ -525,20 +527,26 @@ function savePurchaseHistoryToStorage() {
 }
 
 function generateCleanMonthTimeline() {
-  return [
-    { day: 21, label: "21 Ağu", dateStr: "2026-08-21", sales: 124500, profit: 28400, orderCount: 5, dayName: "Cuma" },
-    { day: 22, label: "22 Ağu", dateStr: "2026-08-22", sales: 148000, profit: 34200, orderCount: 7, dayName: "Cumartesi" },
-    { day: 23, label: "23 Ağu", dateStr: "2026-08-23", sales: 98000,  profit: 21500, orderCount: 4, dayName: "Pazar" },
-    { day: 24, label: "24 Ağu", dateStr: "2026-08-24", sales: 165000, profit: 38000, orderCount: 8, dayName: "Pazartesi" },
-    { day: 25, label: "25 Ağu", dateStr: "2026-08-25", sales: 182000, profit: 41500, orderCount: 9, dayName: "Salı" },
-    { day: 26, label: "26 Ağu", dateStr: "2026-08-26", sales: 139000, profit: 31000, orderCount: 6, dayName: "Çarşamba" },
-    { day: 27, label: "27 Ağu", dateStr: "2026-08-27", sales: 195000, profit: 46200, orderCount: 10, dayName: "Perşembe" },
-    { day: 28, label: "28 Ağu", dateStr: "2026-08-28", sales: 154000, profit: 35800, orderCount: 7, dayName: "Cuma" },
-    { day: 29, label: "29 Ağu", dateStr: "2026-08-29", sales: 173000, profit: 39400, orderCount: 8, dayName: "Cumartesi" },
-    { day: 30, label: "30 Ağu", dateStr: "2026-08-30", sales: 210000, profit: 49000, orderCount: 11, dayName: "Pazar" },
-    { day: 31, label: "31 Ağu", dateStr: "2026-08-31", sales: 188000, profit: 43200, orderCount: 9, dayName: "Pazartesi" },
-    { day: 1,  label: "1 Eyl",  dateStr: "2026-09-01", sales: 162000, profit: 37500, orderCount: 8, dayName: "Salı" }
-  ];
+  const list = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const day = d.getDate();
+    const monthName = d.toLocaleDateString('tr-TR', { month: 'short' });
+    const dayName = d.toLocaleDateString('tr-TR', { weekday: 'long' });
+    const dateStr = d.toISOString().split('T')[0];
+    list.push({
+      day: day,
+      label: `${day} ${monthName}`,
+      dateStr: dateStr,
+      sales: 0,
+      profit: 0,
+      orderCount: 0,
+      dayName: dayName
+    });
+  }
+  return list;
 }
 
 const TR_MONTHS_MAP = {
@@ -671,6 +679,19 @@ function updateDashboardMetrics() {
   if (totalDebtEl) totalDebtEl.textContent = totalReceivables.toLocaleString('tr-TR');
   if (debtCountEl) debtCountEl.textContent = `${debtorCount} Borçlu Satış Noktası`;
 
+  // Drawer menü sayaçlarını canlı verilerle güncelle
+  const drawerDealerCountSub = document.getElementById('drawer-dealer-count-sub');
+  const drawerDealerCounter = document.getElementById('drawer-dealer-counter');
+  const drawerReceivablesBadge = document.getElementById('drawer-receivables-badge');
+  const drawerPayablesBadge = document.getElementById('drawer-payables-badge');
+
+  if (drawerDealerCountSub) drawerDealerCountSub.textContent = `${dealersData.length} Aktif Bayi & Market`;
+  if (drawerDealerCounter) drawerDealerCounter.textContent = dealersData.length.toString();
+  if (drawerReceivablesBadge) drawerReceivablesBadge.textContent = `₺ ${totalReceivables.toLocaleString('tr-TR')}`;
+  
+  const totalPayablesSum = (Array.isArray(payablesData) ? payablesData : []).reduce((acc, p) => acc + (p.remainingAmount || p.totalAmount || 0), 0);
+  if (drawerPayablesBadge) drawerPayablesBadge.textContent = `₺ ${totalPayablesSum.toLocaleString('tr-TR')}`;
+
   // Son 1 Hafta (7 Gün) İçerisindeki En Çok Kâr Edilen Gün Seçimi
   const last7Days = dailySalesData.slice(-7);
   let bestDay = null;
@@ -687,7 +708,7 @@ function updateDashboardMetrics() {
   if (recordEl) {
     if (bestDay && maxProfit > 0) {
       recordEl.innerHTML = `
-        Bu hafta en çok <span class="highlight-date">${bestDay.day} Ağustos ${bestDay.dayName}</span> günü 
+        Bu hafta en çok <span class="highlight-date">${bestDay.label || bestDay.day} ${bestDay.dayName || ''}</span> günü 
         <span class="highlight-amount">₺ ${bestDay.sales.toLocaleString('tr-TR')}</span> satış yaptın ve 
         <span class="highlight-profit">₺ ${bestDay.profit.toLocaleString('tr-TR')}</span> net kâr elde ettin!
       `;
