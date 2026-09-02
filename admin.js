@@ -81,6 +81,8 @@ let AppState = {
   payables: [],
   dailyHistory: {},
   backups: [],
+  messages: [],
+  pendingImageBase64: null,
   isLoading: false,
   activeView: 'view-overview'
 };
@@ -93,6 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupModalDismissHandlers();
   setupSearchAndFilters();
   setupModalForms();
+  setupSupportChat();
 
   const refreshBtn = document.getElementById('btn-refresh-all');
   if (refreshBtn) {
@@ -101,6 +104,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // İlk veri çekme
   loadAllDataFromSupabase();
+
+  // Her 10 saniyede bir yeni mesajları arka planda kontrol et
+  setInterval(() => {
+    loadSupportMessages(false);
+  }, 10000);
 });
 
 // ============================================================================
@@ -119,7 +127,8 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
       catalogRes,
       receivablesRes,
       payablesRes,
-      backupsRes
+      backupsRes,
+      messagesRes
     ] = await Promise.all([
       db.get('dealers', 'order=name.asc').catch(() => []),
       db.get('warehouse_purchases', 'order=date.desc').catch(() => []),
@@ -127,7 +136,8 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
       db.get('cigarettes_catalog', 'order=brand.asc').catch(() => []),
       db.get('customer_receivables', 'order=due_date.asc').catch(() => []),
       db.get('payables', 'order=due_date.asc').catch(() => []),
-      db.get('system_backups', 'order=export_timestamp.desc&limit=25').catch(() => [])
+      db.get('system_backups', 'order=export_timestamp.desc&limit=25').catch(() => []),
+      db.get('support_messages', 'order=created_at.asc&limit=100').catch(() => [])
     ]);
 
     AppState.dealers = Array.isArray(dealersRes) ? dealersRes : [];
@@ -136,6 +146,7 @@ async function loadAllDataFromSupabase(isManualRefresh = false) {
     AppState.customerReceivables = Array.isArray(receivablesRes) ? receivablesRes : [];
     AppState.payables = Array.isArray(payablesRes) ? payablesRes : [];
     AppState.backups = Array.isArray(backupsRes) ? backupsRes : [];
+    AppState.messages = Array.isArray(messagesRes) ? messagesRes : [];
 
     // Stok Haritası Oluştur
     AppState.stocks = {};
@@ -177,6 +188,7 @@ function renderAllViews() {
   renderFinancePage();
   renderCatalogPage();
   renderBackupsPage();
+  renderSupportMessages();
 }
 
 function updateBadges() {
@@ -187,6 +199,7 @@ function updateBadges() {
   const fCount = document.getElementById('badge-finance-count');
   const cCount = document.getElementById('badge-catalog-count');
   const bCount = document.getElementById('badge-backups-count');
+  const supCount = document.getElementById('badge-support-count');
 
   if (dCount) dCount.textContent = AppState.dealers.length;
   
@@ -202,6 +215,14 @@ function updateBadges() {
   if (fCount) fCount.textContent = AppState.customerReceivables.length + AppState.payables.length;
   if (cCount) cCount.textContent = AppState.catalog.length;
   if (bCount) bCount.textContent = AppState.backups.length;
+
+  // Toptancıdan gelen okunmamış mesaj sayısı
+  const unreadCount = AppState.messages.filter(m => m.sender_role === 'toptanci' && !m.is_read).length;
+  if (supCount) {
+    supCount.textContent = unreadCount > 0 ? `${unreadCount} Yeni` : AppState.messages.length;
+    supCount.style.background = unreadCount > 0 ? '#f43f5e' : 'rgba(255,255,255,0.06)';
+    supCount.style.color = '#fff';
+  }
 }
 
 // ============================================================================
@@ -663,6 +684,223 @@ function renderBackupsPage() {
       </td>
     </tr>
   `).join('');
+}
+
+// ============================================================================
+// 9. CANLI DESTEK & FOTOĞRAFLI MESAJLAŞMA MOTORU
+// ============================================================================
+async function loadSupportMessages(shouldScroll = true) {
+  try {
+    const res = await db.get('support_messages', 'order=created_at.asc&limit=150');
+    if (Array.isArray(res)) {
+      const prevLength = AppState.messages.length;
+      AppState.messages = res;
+      renderSupportMessages(shouldScroll);
+      updateBadges();
+
+      // Yeni toptancı mesajı geldiyse ses / toast bildir
+      if (res.length > prevLength && prevLength > 0) {
+        const lastMsg = res[res.length - 1];
+        if (lastMsg.sender_role === 'toptanci') {
+          showToast(`🔔 Toptancı'dan Yeni Mesaj: ${lastMsg.message_text || 'Fotoğraf gönderildi'}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Mesajlar yüklenemedi:", err.message);
+  }
+}
+
+function renderSupportMessages(shouldScroll = true) {
+  const box = document.getElementById('admin-chat-box');
+  if (!box) return;
+
+  if (AppState.messages.length === 0) {
+    box.innerHTML = `
+      <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
+        <div style="font-size:2rem; margin-bottom:8px;">💬</div>
+        Henüz mesajlaşma geçmişi bulunmuyor.<br>
+        Aşağıdaki kutudan toptancınıza mesaj veya fotoğraf gönderebilirsiniz.
+      </div>
+    `;
+    return;
+  }
+
+  box.innerHTML = AppState.messages.map(m => {
+    const isAdmin = m.sender_role === 'admin';
+    const alignStyle = isAdmin ? 'margin-left:auto; text-align:right;' : 'margin-right:auto; text-align:left;';
+    const bubbleBg = isAdmin
+      ? 'background:linear-gradient(135deg, #4338ca 0%, #4f46e5 100%); color:#fff; border-bottom-right-radius:3px;'
+      : 'background:#1e293b; color:#e2e8f0; border-bottom-left-radius:3px; border:1px solid rgba(255,255,255,0.06);';
+    const roleBadge = isAdmin
+      ? '<span style="font-size:0.68rem; background:rgba(255,255,255,0.2); padding:1px 6px; border-radius:4px; font-weight:800;">Patron</span>'
+      : '<span style="font-size:0.68rem; background:rgba(16,185,129,0.25); color:#34d399; padding:1px 6px; border-radius:4px; font-weight:800;">Toptancı (Saha)</span>';
+
+    const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+    let imageHtml = '';
+    if (m.image_url) {
+      imageHtml = `
+        <div style="margin-top:6px; margin-bottom:4px;">
+          <img src="${m.image_url}" alt="Ek" style="max-width:240px; max-height:220px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="window.open('${m.image_url}', '_blank')" title="Büyütmek için tıklayın" />
+        </div>
+      `;
+    }
+
+    return `
+      <div style="max-width:75%; ${alignStyle}">
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px; justify-content:${isAdmin ? 'flex-end' : 'flex-start'};">
+          ${!isAdmin ? roleBadge : ''}
+          <span style="font-size:0.7rem; color:#94a3b8;">${m.sender_name || (isAdmin ? 'Patron' : 'Toptancı')}</span>
+          <span style="font-size:0.65rem; color:#64748b;">${timeStr}</span>
+          ${isAdmin ? roleBadge : ''}
+        </div>
+        <div style="display:inline-block; padding:10px 14px; border-radius:12px; font-size:0.85rem; line-height:1.4; word-break:break-word; text-align:left; box-shadow:0 2px 8px rgba(0,0,0,0.2); ${bubbleBg}">
+          ${imageHtml}
+          ${m.message_text ? `<div>${escapeHtml(m.message_text)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (shouldScroll) {
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+function setupSupportChat() {
+  const fileInp = document.getElementById('admin-chat-file-input');
+  const attachBtn = document.getElementById('btn-admin-attach-photo');
+  const previewStrip = document.getElementById('admin-chat-preview-strip');
+  const previewImg = document.getElementById('admin-chat-preview-img');
+  const removePreviewBtn = document.getElementById('btn-remove-admin-preview');
+  const sendBtn = document.getElementById('btn-admin-send-message');
+  const textInp = document.getElementById('admin-chat-input-text');
+  const refreshMsgBtn = document.getElementById('btn-refresh-messages');
+
+  if (attachBtn && fileInp) {
+    attachBtn.onclick = () => fileInp.click();
+    fileInp.onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        // Görseli Canvas ile sıkıştır (Maksimum 1000px genişlik / yükseklik)
+        compressImage(loadEvt.target.result, 1000, 0.75, (compressedBase64) => {
+          AppState.pendingImageBase64 = compressedBase64;
+          if (previewImg) previewImg.src = compressedBase64;
+          if (previewStrip) previewStrip.style.display = 'flex';
+        });
+      };
+      reader.readAsDataURL(file);
+    };
+  }
+
+  if (removePreviewBtn) {
+    removePreviewBtn.onclick = () => {
+      AppState.pendingImageBase64 = null;
+      if (fileInp) fileInp.value = '';
+      if (previewStrip) previewStrip.style.display = 'none';
+    };
+  }
+
+  const handleSendMessage = async () => {
+    const text = textInp ? textInp.value.trim() : '';
+    const img = AppState.pendingImageBase64;
+
+    if (!text && !img) {
+      alert("Lütfen bir mesaj yazın veya fotoğraf ekleyin!");
+      return;
+    }
+
+    try {
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Gönderiliyor...";
+      }
+
+      const msgRecord = {
+        sender_role: 'admin',
+        sender_name: 'Patron',
+        message_text: text || '',
+        image_url: img || null,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+
+      await db.post('support_messages', msgRecord);
+
+      // Temizle
+      if (textInp) textInp.value = '';
+      AppState.pendingImageBase64 = null;
+      if (fileInp) fileInp.value = '';
+      if (previewStrip) previewStrip.style.display = 'none';
+
+      await loadSupportMessages(true);
+      showToast("Mesaj toptancıya iletildi!");
+    } catch (err) {
+      alert(`Mesaj gönderme hatası: ${err.message}\n(Supabase'de 'support_messages' tablosunu oluşturduğunuzdan emin olun)`);
+    } finally {
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Gönder`;
+      }
+    }
+  };
+
+  if (sendBtn) sendBtn.onclick = handleSendMessage;
+  if (textInp) {
+    textInp.onkeydown = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSendMessage();
+      }
+    };
+  }
+
+  if (refreshMsgBtn) {
+    refreshMsgBtn.onclick = () => loadSupportMessages(true);
+  }
+}
+
+// Görsel Boyutunu & Kalitesini Düşüren Sıkıştırma Yardımcısı
+function compressImage(base64Str, maxDimension = 1000, quality = 0.75, callback) {
+  const img = new Image();
+  img.src = base64Str;
+  img.onload = () => {
+    let width = img.width;
+    let height = img.height;
+
+    if (width > height) {
+      if (width > maxDimension) {
+        height = Math.round((height * maxDimension) / width);
+        width = maxDimension;
+      }
+    } else {
+      if (height > maxDimension) {
+        width = Math.round((width * maxDimension) / height);
+        height = maxDimension;
+      }
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, width, height);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 // ============================================================================
@@ -1204,12 +1442,17 @@ function switchView(viewId) {
     'view-inventory': { title: "Depo Stok Yönetimi", desc: "Anlık sigara sayımları, açıklar ve eksi stok durumları" },
     'view-finance': { title: "Kasa: Alacaklar & Borçlar", desc: "Piyasadan toplanacak para ve fabrikaya ödenecek vadeli borçlar" },
     'view-catalog': { title: "Sigara Kataloğu & Fiyatlar", desc: "Fabrika alış, tavsiye satış ve kâr marjları listesi" },
+    'view-support': { title: "Toptancı Canlı Destek", desc: "Saha satış elemanı ile anlık mesajlaşma ve fotoğraf paylaşımı" },
     'view-backups': { title: "Bulut Sistem Yedekleri", desc: "Supabase üzerinde depolanan anlık tam sistem snapshot'ları" }
   };
 
   if (titles[viewId] && titleEl && descEl) {
     titleEl.textContent = titles[viewId].title;
     descEl.textContent = titles[viewId].desc;
+  }
+
+  if (viewId === 'view-support') {
+    renderSupportMessages(true);
   }
 }
 

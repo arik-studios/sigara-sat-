@@ -8464,3 +8464,326 @@ window.resetTestDataForRestoreDemo = function() {
     showToast("Satışlar ve depo stokları sıfırlandı! Şimdi indirdiğiniz yedeği seçip geri yükleyebilirsiniz.");
   }
 };
+
+/* ==========================================================================
+   25. TOPTANCI & PATRON CANLI DESTEK VE FOTOĞRAFLI MESAJLAŞMA SİSTEMİ
+   ========================================================================== */
+(function initSupportChatModule() {
+  const SUPABASE_URL = "https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1";
+  const SUPABASE_KEY = "sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9";
+
+  let chatMessages = [];
+  let pendingImageBase64 = null;
+  let lastSeenMessageId = 0;
+
+  function playNotificationSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } catch (e) {}
+  }
+
+  function triggerVibration() {
+    try {
+      if (navigator && navigator.vibrate) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    } catch (e) {}
+  }
+
+  function showNotificationBanner(text) {
+    const banner = document.getElementById('app-support-notification-banner');
+    const textEl = document.getElementById('app-support-notification-text');
+    if (!banner || !textEl) return;
+
+    textEl.textContent = text || 'Yeni mesajınız var.';
+    banner.style.top = '24px';
+    playNotificationSound();
+    triggerVibration();
+
+    banner.onclick = () => {
+      banner.style.top = '-100px';
+      openChatModal();
+    };
+
+    setTimeout(() => {
+      if (banner.style.top === '24px') {
+        banner.style.top = '-100px';
+      }
+    }, 6000);
+  }
+
+  async function fetchMessages(isBackground = true) {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/support_messages?order=created_at.asc&limit=150`, {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!Array.isArray(data)) return;
+
+      const prevLastId = lastSeenMessageId;
+      chatMessages = data;
+
+      if (data.length > 0) {
+        const latestMsg = data[data.length - 1];
+        lastSeenMessageId = latestMsg.id;
+
+        // Yeni Patron mesajı kontrolü
+        if (prevLastId > 0 && latestMsg.id > prevLastId && latestMsg.sender_role === 'admin') {
+          showNotificationBanner(latestMsg.message_text || 'Fotoğraf gönderildi 📷');
+        }
+      }
+
+      updateUnreadBadge();
+      const modal = document.getElementById('modal-support-chat');
+      if (modal && !modal.classList.contains('hidden')) {
+        renderChatMessages();
+      }
+    } catch (e) {
+      console.warn("Destek mesajları çekilemedi:", e);
+    }
+  }
+
+  function updateUnreadBadge() {
+    const badge = document.getElementById('drawer-support-badge');
+    if (!badge) return;
+    const unreadCount = chatMessages.filter(m => m.sender_role === 'admin' && !m.is_read).length;
+    if (unreadCount > 0) {
+      badge.textContent = `${unreadCount} Yeni`;
+      badge.style.background = '#f43f5e';
+      badge.style.color = '#ffffff';
+    } else {
+      badge.textContent = 'Destek';
+      badge.style.background = 'rgba(16,185,129,0.25)';
+      badge.style.color = '#34d399';
+    }
+  }
+
+  function renderChatMessages() {
+    const box = document.getElementById('app-support-chat-box');
+    if (!box) return;
+
+    if (chatMessages.length === 0) {
+      box.innerHTML = `
+        <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
+          <div style="font-size:2rem; margin-bottom:8px;">💬</div>
+          Patron & Merkez ile sohbet başlatın.<br>
+          Kamera veya galeriden fotoğraf ekleyerek gönderebilirsiniz.
+        </div>
+      `;
+      return;
+    }
+
+    box.innerHTML = chatMessages.map(m => {
+      const isMe = m.sender_role === 'toptanci';
+      const alignStyle = isMe ? 'margin-left:auto; text-align:right;' : 'margin-right:auto; text-align:left;';
+      const bubbleBg = isMe
+        ? 'background:linear-gradient(135deg, #059669 0%, #10b981 100%); color:#fff; border-bottom-right-radius:3px;'
+        : 'background:#1e293b; color:#e2e8f0; border-bottom-left-radius:3px; border:1px solid rgba(255,255,255,0.06);';
+      const roleBadge = isMe
+        ? '<span style="font-size:0.68rem; background:rgba(255,255,255,0.25); padding:1px 6px; border-radius:4px; font-weight:800;">Ben (Toptancı)</span>'
+        : '<span style="font-size:0.68rem; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:1px 6px; border-radius:4px; font-weight:800;">Patron / Merkez</span>';
+
+      const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
+
+      let imageHtml = '';
+      if (m.image_url) {
+        imageHtml = `
+          <div style="margin-top:6px; margin-bottom:4px;">
+            <img src="${m.image_url}" alt="Fotoğraf" style="max-width:220px; max-height:200px; border-radius:8px; object-fit:cover; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="window.open('${m.image_url}', '_blank')" title="Büyütmek için dokunun" />
+          </div>
+        `;
+      }
+
+      return `
+        <div style="max-width:80%; ${alignStyle}">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
+            ${!isMe ? roleBadge : ''}
+            <span style="font-size:0.7rem; color:#94a3b8;">${m.sender_name || (isMe ? 'Toptancı' : 'Patron')}</span>
+            <span style="font-size:0.65rem; color:#64748b;">${timeStr}</span>
+            ${isMe ? roleBadge : ''}
+          </div>
+          <div style="display:inline-block; padding:10px 14px; border-radius:12px; font-size:0.85rem; line-height:1.4; word-break:break-word; text-align:left; box-shadow:0 2px 8px rgba(0,0,0,0.2); ${bubbleBg}">
+            ${imageHtml}
+            ${m.message_text ? `<div>${m.message_text}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function compressImage(base64Str, maxDimension = 1000, quality = 0.75, callback) {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+      if (width > height) {
+        if (width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        }
+      } else {
+        if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL('image/jpeg', quality));
+    };
+  }
+
+  async function sendMessage() {
+    const textInp = document.getElementById('app-support-input-text');
+    const sendBtn = document.getElementById('btn-app-send-message');
+    const previewStrip = document.getElementById('app-support-preview-strip');
+    const fileInp = document.getElementById('app-support-file-input');
+
+    const text = textInp ? textInp.value.trim() : '';
+    const img = pendingImageBase64;
+
+    if (!text && !img) {
+      alert("Lütfen bir mesaj yazın veya fotoğraf ekleyin!");
+      return;
+    }
+
+    try {
+      if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Gönderiliyor...";
+      }
+
+      const msgRecord = {
+        sender_role: 'toptanci',
+        sender_name: 'Saha Toptancı',
+        message_text: text || '',
+        image_url: img || null,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+
+      await fetch(`${SUPABASE_URL}/support_messages`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(msgRecord)
+      });
+
+      if (textInp) textInp.value = '';
+      pendingImageBase64 = null;
+      if (fileInp) fileInp.value = '';
+      if (previewStrip) previewStrip.style.display = 'none';
+
+      await fetchMessages(false);
+    } catch (err) {
+      alert(`Mesaj gönderilemedi: ${err.message}\n(Supabase'de support_messages tablosunun oluşturulduğundan emin olun)`);
+    } finally {
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Gönder`;
+      }
+    }
+  }
+
+  function openChatModal() {
+    const modal = document.getElementById('modal-support-chat');
+    if (modal) {
+      modal.classList.remove('hidden');
+      renderChatMessages();
+      fetchMessages(false);
+    }
+  }
+
+  function closeChatModal() {
+    const modal = document.getElementById('modal-support-chat');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  function setupEvents() {
+    const drawerBtn = document.getElementById('drawer-btn-support-chat');
+    const closeBtn = document.getElementById('btn-close-support-chat');
+    const sendBtn = document.getElementById('btn-app-send-message');
+    const textInp = document.getElementById('app-support-input-text');
+    const attachBtn = document.getElementById('btn-app-attach-photo');
+    const fileInp = document.getElementById('app-support-file-input');
+    const previewStrip = document.getElementById('app-support-preview-strip');
+    const previewImg = document.getElementById('app-support-preview-img');
+    const removePreviewBtn = document.getElementById('btn-remove-app-preview');
+
+    if (drawerBtn) drawerBtn.onclick = (e) => { e.preventDefault(); openChatModal(); };
+    if (closeBtn) closeBtn.onclick = closeChatModal;
+
+    if (attachBtn && fileInp) {
+      attachBtn.onclick = () => fileInp.click();
+      fileInp.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          compressImage(evt.target.result, 1000, 0.75, (compressed) => {
+            pendingImageBase64 = compressed;
+            if (previewImg) previewImg.src = compressed;
+            if (previewStrip) previewStrip.style.display = 'flex';
+          });
+        };
+        reader.readAsDataURL(file);
+      };
+    }
+
+    if (removePreviewBtn) {
+      removePreviewBtn.onclick = () => {
+        pendingImageBase64 = null;
+        if (fileInp) fileInp.value = '';
+        if (previewStrip) previewStrip.style.display = 'none';
+      };
+    }
+
+    if (sendBtn) sendBtn.onclick = sendMessage;
+    if (textInp) {
+      textInp.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          sendMessage();
+        }
+      };
+    }
+
+    fetchMessages(false);
+    setInterval(() => {
+      fetchMessages(true);
+    }, 10000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupEvents);
+  } else {
+    setupEvents();
+  }
+
+  window.openSupportChatModal = openChatModal;
+})();

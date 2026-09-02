@@ -140,3 +140,19 @@ CREATE POLICY "Allow public all for warehouse_purchases" ON public.warehouse_pur
 
 DROP POLICY IF EXISTS "Allow public all for payables" ON public.payables;
 CREATE POLICY "Allow public all for payables" ON public.payables FOR ALL USING (true) WITH CHECK (true);
+
+-- 9. CANLI DESTEK & FOTOĞRAFLI MESAJLAŞMA TABLOSU
+CREATE TABLE IF NOT EXISTS public.support_messages (
+    id BIGSERIAL PRIMARY KEY,
+    sender_role TEXT NOT NULL, -- 'admin' veya 'toptanci'
+    sender_name TEXT,
+    message_text TEXT,
+    image_url TEXT, -- Base64 sıkıştırılmış görsel veya URL
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    is_read BOOLEAN DEFAULT FALSE
+);
+
+ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public all for support_messages" ON public.support_messages;
+CREATE POLICY "Allow public all for support_messages" ON public.support_messages FOR ALL USING (true) WITH CHECK (true);
+

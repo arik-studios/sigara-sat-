@@ -197,6 +197,17 @@
                 <span class="item-badge" style="background:rgba(59,130,246,0.2); color:#60a5fa;">Yedekleme</span>
               </a>
 
+              <a href="#canli-destek" class="drawer-item" id="drawer-btn-support-chat" style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); margin-top:6px;">
+                <div class="drawer-icon-box" style="background:rgba(16,185,129,0.2); color:#34d399;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+                <div class="drawer-item-text">
+                  <span class="item-title" style="color:#34d399; font-weight:800;">💬 Canlı Destek & Patron</span>
+                  <span class="item-sub">Fotoğraflı Mesajlaşma Hattı</span>
+                </div>
+                <span class="item-badge" id="drawer-support-badge" style="background:rgba(16,185,129,0.25); color:#34d399; font-weight:800;">Destek</span>
+              </a>
+
               <a href="admin.html" target="_blank" class="drawer-item" id="drawer-btn-open-admin-panel" style="background:linear-gradient(135deg, rgba(99,102,241,0.12) 0%, rgba(168,85,247,0.12) 100%); border:1px solid rgba(99,102,241,0.35); margin-top:6px;">
                 <div class="drawer-icon-box" style="background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color:#fff;">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -3556,6 +3567,75 @@
       </div>
 
     </div>
+  </div>
+
+  <!-- ==========================================================================
+       MODAL: CANLI DESTEK & PATRON HATTI (FOTOĞRAFLI SOHBET)
+       ========================================================================== -->
+  <div class="modal-overlay hidden" id="modal-support-chat" style="z-index:99999;">
+    <div class="modal-card" style="max-width:540px; height:85vh; max-height:750px; display:flex; flex-direction:column; background:#0b1120; border:1px solid rgba(16,185,129,0.4); box-shadow:0 25px 60px rgba(0,0,0,0.9), 0 0 35px rgba(16,185,129,0.2);">
+      
+      <!-- Modal Header -->
+      <div class="modal-header" style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; background:#090e1a;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div style="width:36px; height:36px; border-radius:10px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; color:#34d399;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div>
+            <h3 style="font-size:1.02rem; font-weight:900; color:#ffffff; margin:0;">Patron & Merkez Canlı Destek</h3>
+            <span style="font-size:0.7rem; color:#34d399; font-weight:700; display:flex; align-items:center; gap:4px;">
+              <span style="width:6px; height:6px; border-radius:50%; background:#10b981; display:inline-block;"></span> Canlı Hat Aktif
+            </span>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal" id="btn-close-support-chat" style="background:none; border:none; color:#94a3b8; font-size:1.6rem; cursor:pointer; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px;">&times;</button>
+      </div>
+
+      <!-- Chat Messages Body -->
+      <div id="app-support-chat-box" style="flex:1; padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#060913;">
+        <div style="text-align:center; color:#64748b; font-size:0.8rem; margin:auto;">
+          Yükleniyor...
+        </div>
+      </div>
+
+      <!-- Photo Preview Strip -->
+      <div id="app-support-preview-strip" style="display:none; padding:8px 12px; background:rgba(16,185,129,0.1); border-top:1px solid rgba(16,185,129,0.3); align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <img id="app-support-preview-img" src="" alt="Önizleme" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #34d399;" />
+          <span style="font-size:0.75rem; color:#34d399; font-weight:700;">Fotoğraf eklendi</span>
+        </div>
+        <button type="button" id="btn-remove-app-preview" style="background:none; border:none; color:#fb7185; font-size:1.2rem; cursor:pointer; font-weight:bold;">&times;</button>
+      </div>
+
+      <!-- Message Input Bar -->
+      <div style="padding:12px 14px; background:#090e1a; border-top:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; gap:8px;">
+        <input type="file" id="app-support-file-input" accept="image/*" style="display:none;" />
+        
+        <button type="button" id="btn-app-attach-photo" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#34d399; width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" title="Kamera / Galeri Fotoğrafı Ekle">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+
+        <input type="text" id="app-support-input-text" placeholder="Patron'a mesaj yazın..." style="flex:1; background:#060913; border:1px solid rgba(255,255,255,0.1); color:#ffffff; padding:10px 14px; border-radius:10px; font-size:0.85rem; outline:none;" />
+
+        <button type="button" id="btn-app-send-message" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%); border:1px solid #34d399; color:#ffffff; padding:10px 16px; border-radius:10px; font-size:0.85rem; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Gönder
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Üstten Kayan Anlık Patron Bildirim Bannerı -->
+  <div id="app-support-notification-banner" style="position:fixed; top:-100px; left:50%; transform:translateX(-50%); z-index:999999; background:linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); border:1px solid #818cf8; box-shadow:0 15px 40px rgba(0,0,0,0.8), 0 0 25px rgba(99,102,241,0.5); border-radius:14px; padding:12px 20px; display:flex; align-items:center; gap:14px; max-width:92%; width:440px; transition:top 0.4s cubic-bezier(0.4, 0, 0.2, 1); cursor:pointer;">
+    <div style="width:38px; height:38px; border-radius:10px; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; color:#fbbf24; font-size:1.2rem; flex-shrink:0;">
+      🔔
+    </div>
+    <div style="flex:1; overflow:hidden;">
+      <div style="font-size:0.75rem; font-weight:900; color:#a5b4fc; text-transform:uppercase; letter-spacing:0.5px;">Patron'dan Yeni Mesaj Geldi!</div>
+      <div id="app-support-notification-text" style="font-size:0.84rem; color:#ffffff; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">--</div>
+    </div>
+    <span style="font-size:0.75rem; background:rgba(99,102,241,0.3); color:#c7d2fe; padding:4px 8px; border-radius:6px; font-weight:800; flex-shrink:0;">Aç ↗</span>
   </div>
 
   <!-- Floating Toast Notification Container -->

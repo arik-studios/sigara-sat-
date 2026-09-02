@@ -89,6 +89,14 @@
         <span class="nav-badge" id="badge-catalog-count">0</span>
       </a>
 
+      <a class="nav-link" data-target="view-support">
+        <div class="nav-link-left">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Toptancı Canlı Destek
+        </div>
+        <span class="nav-badge" id="badge-support-count">0</span>
+      </a>
+
       <a class="nav-link" data-target="view-backups">
         <div class="nav-link-left">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>
@@ -537,7 +545,59 @@
       </section>
 
       <!-- ======================================================================
-           SAYFA 8: BULUT SİSTEM YEDEKLERİ
+           SAYFA 8: CANLI DESTEK & TOPTANCI İLETİŞİM (FOTOĞRAFLI MESAJLAŞMA)
+           ====================================================================== -->
+      <section class="admin-page-view" id="view-support">
+        <div class="admin-card" style="display:flex; flex-direction:column; height:calc(100vh - 160px); min-height:550px;">
+          <div class="card-header-bar" style="margin-bottom:12px;">
+            <div class="card-title-group">
+              <h3>💬 Toptancı Canlı Destek & Saha İletişim Hattı</h3>
+              <p>Saha satış elemanı ile anlık mesajlaşma, ürün & fatura fotoğrafı alışverişi</p>
+            </div>
+            <div class="card-actions">
+              <button type="button" class="btn-tbl btn-tbl-primary" id="btn-refresh-messages">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                Mesajları Yenile
+              </button>
+            </div>
+          </div>
+
+          <!-- Mesaj Akış Penceresi -->
+          <div id="admin-chat-box" style="flex:1; background:#060913; border:1px solid var(--border-subtle); border-radius:12px; padding:18px; overflow-y:auto; display:flex; flex-direction:column; gap:14px;">
+            <div style="text-align:center; color:#64748b; font-size:0.8rem; margin:auto;">
+              Mesajlar yükleniyor...
+            </div>
+          </div>
+
+          <!-- Seçilen Fotoğraf Önizleme Şeridi -->
+          <div id="admin-chat-preview-strip" style="display:none; padding:8px 12px; background:rgba(99,102,241,0.1); border:1px solid var(--border-accent); border-radius:8px; margin-top:10px; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <img id="admin-chat-preview-img" src="" alt="Önizleme" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #818cf8;" />
+              <span style="font-size:0.75rem; color:#a5b4fc; font-weight:700;">Fotoğraf eklendi</span>
+            </div>
+            <button type="button" id="btn-remove-admin-preview" style="background:none; border:none; color:#fb7185; font-size:1.1rem; cursor:pointer; font-weight:bold;">&times;</button>
+          </div>
+
+          <!-- Mesaj Gönderme Giriş Çubuğu -->
+          <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
+            <input type="file" id="admin-chat-file-input" accept="image/*" style="display:none;" />
+            <button type="button" class="btn-tbl btn-tbl-primary" id="btn-admin-attach-photo" style="padding:10px 14px; font-size:0.82rem;" title="Fotoğraf Ekle">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Fotoğraf Ekle
+            </button>
+
+            <input type="text" class="form-input" id="admin-chat-input-text" placeholder="Toptancıya mesaj yazın..." style="flex:1; margin-bottom:0;" />
+            
+            <button type="button" class="btn-primary-action" id="btn-admin-send-message" style="padding:10px 20px; font-size:0.85rem;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Gönder
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================================
+           SAYFA 9: BULUT SİSTEM YEDEKLERİ
            ====================================================================== -->
       <section class="admin-page-view" id="view-backups">
         <div class="admin-card">
