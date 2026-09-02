@@ -9359,27 +9359,17 @@ window.resetTestDataForRestoreDemo = function() {
     if (!modalGate) return;
     if (devPrint) devPrint.textContent = deviceId;
 
-    const regDataRaw = localStorage.getItem(REGISTRATION_STORAGE_KEY);
     const savedKey = (localStorage.getItem(LICENSE_STORAGE_KEY) || '').trim().toUpperCase();
     const hasValidKey = savedKey && !savedKey.startsWith('BEKLIYOR');
 
-    // 1. KONTROL: Henüz Kayıt Olunmamışsa -> ADIM 1: Kayıt Formunu Göster
-    if (!regDataRaw && !hasValidKey) {
-      modalGate.style.display = 'flex';
-      modalGate.classList.remove('hidden');
-      if (closeGateBtn) closeGateBtn.style.display = 'none';
-      if (stepRegister) stepRegister.style.display = 'block';
-      if (stepKey) stepKey.style.display = 'none';
-      return false;
-    }
-
-    // 2. KONTROL: Kayıt var ama lisans anahtarı henüz girilmemişse -> ADIM 2: Anahtar Girişini Göster
+    // KONTROL: Aktif lisans anahtarı yoksa -> UYGULAMA AÇILIR AÇILMAZ DOĞRUDAN LİSANS ANAHTARINI SOR!
     if (!hasValidKey) {
       modalGate.style.display = 'flex';
       modalGate.classList.remove('hidden');
       if (closeGateBtn) closeGateBtn.style.display = 'none';
       if (stepRegister) stepRegister.style.display = 'none';
       if (stepKey) stepKey.style.display = 'block';
+      if (alertBox) alertBox.style.display = 'none';
       return false;
     }
 

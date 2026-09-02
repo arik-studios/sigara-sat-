@@ -3734,9 +3734,33 @@
       </div>
 
       <!-- ==========================================
-           ADIM 1: YENİ TOPTANCI KAYIT FORMU
+           ADIM 1: ERİŞİM / LİSANS ANAHTARI GİRİŞİ (VARSAYILAN)
            ========================================== -->
-      <div id="lic-step-register" style="display:block;">
+      <div id="lic-step-key" style="display:block;">
+        <h2 id="lic-gate-title" style="font-size:1.25rem; font-weight:900; color:#ffffff; margin:0 0 6px;">Lisans Anahtarınızı Giriniz</h2>
+        <p id="lic-gate-desc" style="font-size:0.82rem; color:#94a3b8; line-height:1.45; margin:0 0 18px;">
+          Sistemi kullanmaya başlamak için lütfen yöneticinizden aldığınız <strong>30 Günlük</strong> veya <strong>Sınırsız</strong> lisans anahtarınızı giriniz:
+        </p>
+
+        <div id="lic-gate-input-box" style="margin-bottom:16px;">
+          <label style="display:block; text-align:left; font-size:0.75rem; font-weight:800; color:#a5b4fc; margin-bottom:6px;">LİSANS / ERİŞİM ANAHTARINIZ</label>
+          <input type="text" id="input-license-key" placeholder="Örn: LIC-30D-9502" style="width:100%; box-sizing:border-box; background:#040711; border:1.5px solid #6366f1; color:#38bdf8; padding:12px 14px; border-radius:12px; font-family:monospace; font-size:1.1rem; font-weight:800; text-align:center; letter-spacing:1.5px; outline:none; text-transform:uppercase;" />
+        </div>
+
+        <button type="button" id="btn-activate-license" style="width:100%; background:linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border:1px solid #818cf8; color:#ffffff; padding:13px 20px; border-radius:12px; font-size:0.92rem; font-weight:900; cursor:pointer; box-shadow:0 8px 25px rgba(79,70,229,0.4); display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
+          <span>🚀 Lisansı Doğrula & Giriş Yap</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+
+        <button type="button" id="btn-switch-to-reg" style="background:none; border:none; color:#818cf8; font-size:0.8rem; cursor:pointer; font-weight:700; text-decoration:underline;">
+          Hesabınız yok mu? Yeni Toptancı Başvurusu Yap →
+        </button>
+      </div>
+
+      <!-- ==========================================
+           ADIM 2: YENİ TOPTANCI KAYIT FORMU
+           ========================================== -->
+      <div id="lic-step-register" style="display:none;">
         <h2 style="font-size:1.25rem; font-weight:900; color:#ffffff; margin:0 0 6px;">Toptancı Kaydı & Aktivasyon</h2>
         <p style="font-size:0.82rem; color:#94a3b8; line-height:1.45; margin:0 0 18px;">
           Sistemi kullanmaya başlamak için lütfen işletme ve iletişim bilgilerinizi giriniz. Bilgileriniz yöneticiye (Patron) iletilecektir.
@@ -3764,31 +3788,7 @@
         </button>
 
         <button type="button" id="btn-switch-to-key" style="background:none; border:none; color:#818cf8; font-size:0.8rem; cursor:pointer; font-weight:700; text-decoration:underline;">
-          Zaten bir lisans anahtarım var →
-        </button>
-      </div>
-
-      <!-- ==========================================
-           ADIM 2: ERİŞİM / LİSANS ANAHTARI GİRİŞİ
-           ========================================== -->
-      <div id="lic-step-key" style="display:none;">
-        <h2 id="lic-gate-title" style="font-size:1.25rem; font-weight:900; color:#ffffff; margin:0 0 6px;">Erişim Anahtarı Girişi</h2>
-        <p id="lic-gate-desc" style="font-size:0.82rem; color:#94a3b8; line-height:1.45; margin:0 0 18px;">
-          Kaydınız alındı. Lütfen yöneticinizden (Patron) aldığınız <strong>30 Günlük</strong> veya <strong>Sınırsız</strong> lisans anahtarını giriniz:
-        </p>
-
-        <div id="lic-gate-input-box" style="margin-bottom:16px;">
-          <label style="display:block; text-align:left; font-size:0.75rem; font-weight:800; color:#a5b4fc; margin-bottom:6px;">LİSANS / ERİŞİM ANAHTARINIZ</label>
-          <input type="text" id="input-license-key" placeholder="Örn: LIC-30D-9502" style="width:100%; box-sizing:border-box; background:#040711; border:1.5px solid #6366f1; color:#38bdf8; padding:12px 14px; border-radius:12px; font-family:monospace; font-size:1.1rem; font-weight:800; text-align:center; letter-spacing:1.5px; outline:none; text-transform:uppercase;" />
-        </div>
-
-        <button type="button" id="btn-activate-license" style="width:100%; background:linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border:1px solid #818cf8; color:#ffffff; padding:13px 20px; border-radius:12px; font-size:0.92rem; font-weight:900; cursor:pointer; box-shadow:0 8px 25px rgba(79,70,229,0.4); display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:14px;">
-          <span>Cihazı Mühürle & Giriş Yap</span>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-        </button>
-
-        <button type="button" id="btn-switch-to-reg" style="background:none; border:none; color:#94a3b8; font-size:0.78rem; cursor:pointer; font-weight:700;">
-          ← Bilgilerimi Düzenle
+          ← Zaten bir lisans anahtarım var, anahtar gir
         </button>
       </div>
 
