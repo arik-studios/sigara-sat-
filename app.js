@@ -2208,6 +2208,7 @@ function updateRowQty(cigId) {
 
 function updateLiveCatalogTotal() {
   let grandTotal = 0;
+  let totalEstimatedProfit = 0;
   let itemCount = 0;
 
   Object.keys(currentCart).forEach(cigId => {
@@ -2216,16 +2217,24 @@ function updateLiveCatalogTotal() {
     if (cig && cart) {
       const prices = getEffectiveCigarettePrice(cig, currentActiveDealer);
       if (cart.packetQty > 0 || cart.cartonQty > 0) {
-        grandTotal += (cart.packetQty * prices.packetPrice) + (cart.cartonQty * prices.cartonPrice);
+        const lineTotal = (cart.packetQty * prices.packetPrice) + (cart.cartonQty * prices.cartonPrice);
+        grandTotal += lineTotal;
         itemCount++;
+
+        const buyPerPacket = (cig.buyPrice || 0) / 10;
+        const buyPerCarton = (cig.buyPrice || 0);
+        const lineCost = (cart.packetQty * buyPerPacket) + (cart.cartonQty * buyPerCarton);
+        totalEstimatedProfit += (lineTotal - lineCost);
       }
     }
   });
 
   const totalEl = document.getElementById('catalog-live-total');
+  const profitEl = document.getElementById('catalog-live-profit');
   const countText = document.getElementById('catalog-item-count-text');
 
   if (totalEl) totalEl.textContent = `₺ ${grandTotal.toLocaleString('tr-TR')}`;
+  if (profitEl) profitEl.textContent = `+₺ ${Math.round(totalEstimatedProfit).toLocaleString('tr-TR')}`;
   if (countText) countText.textContent = `${itemCount} kalem ürün seçildi`;
 }
 
@@ -2458,9 +2467,9 @@ function finalizeSaleTransaction(paidAmount) {
 
   const items = getSelectedCartItems();
   const remainingDebt = Math.max(0, orderFinalTotal - paidAmount);
+  const excessPayment = Math.max(0, paidAmount - orderFinalTotal);
   const receiptNo = "TR-" + Math.floor(1000 + Math.random() * 9000);
   const pastDebtBeforeThisSale = currentActiveDealer.totalDebt || 0;
-  const grandTotalDebtAfterSale = pastDebtBeforeThisSale + remainingDebt;
 
   let saleProfit = 0;
   items.forEach(itm => {
@@ -2486,6 +2495,7 @@ function finalizeSaleTransaction(paidAmount) {
   const saleTimestamp = new Date(activeDate.getFullYear(), activeDate.getMonth(), activeDate.getDate(), now.getHours(), now.getMinutes(), now.getSeconds()).getTime();
   const businessDateKey = getActiveBusinessDateStr();
 
+  // 1. Bu Satışı Ekle
   currentActiveDealer.sales.unshift({
     id: "s-" + Date.now(),
     date: dateStr,
@@ -2497,8 +2507,8 @@ function finalizeSaleTransaction(paidAmount) {
     total: orderFinalTotal,
     totalAmount: orderFinalTotal,
     netProfit: Math.round(saleProfit),
-    paid: paidAmount,
-    paidAmount: paidAmount,
+    paid: Math.min(paidAmount, orderFinalTotal),
+    paidAmount: Math.min(paidAmount, orderFinalTotal),
     debt: remainingDebt,
     remainingDebt: remainingDebt,
     receipt: receiptNo
@@ -2506,6 +2516,7 @@ function finalizeSaleTransaction(paidAmount) {
 
   currentActiveDealer.lastOrder = "Bugün " + now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
+  // 2. Borç Artışı veya Fazla Ödeme (Mahsup) Yönetimi
   if (remainingDebt > 0) {
     currentActiveDealer.totalDebt = (currentActiveDealer.totalDebt || 0) + remainingDebt;
 
@@ -2520,9 +2531,52 @@ function finalizeSaleTransaction(paidAmount) {
       remaining: remainingDebt,
       status: "Ödeme Bekleniyor"
     });
+  } else if (excessPayment > 0) {
+    // Fatura tutarından fazla ödenen miktar toplam borçtan düşülür
+    currentActiveDealer.totalDebt = Math.max(0, (currentActiveDealer.totalDebt || 0) - excessPayment);
+
+    // Geçmiş satışların borçlarından sırayla düş
+    let remExcess = excessPayment;
+    for (let i = 1; i < currentActiveDealer.sales.length && remExcess > 0; i++) {
+      const pastSale = currentActiveDealer.sales[i];
+      if (pastSale && pastSale.debt && pastSale.debt > 0) {
+        const deduct = Math.min(pastSale.debt, remExcess);
+        pastSale.debt -= deduct;
+        pastSale.remainingDebt = pastSale.debt;
+        pastSale.paid = (pastSale.paid || 0) + deduct;
+        pastSale.paidAmount = pastSale.paid;
+        remExcess -= deduct;
+      }
+    }
+
+    // Geçmiş debts kayıtlarından da düş
+    let remDebtExcess = excessPayment;
+    for (let i = 0; i < currentActiveDealer.debts.length && remDebtExcess > 0; i++) {
+      const dRecord = currentActiveDealer.debts[i];
+      if (dRecord && dRecord.remaining && dRecord.remaining > 0) {
+        const deduct = Math.min(dRecord.remaining, remDebtExcess);
+        dRecord.remaining -= deduct;
+        if (dRecord.remaining <= 0) {
+          dRecord.status = "Ödendi";
+        }
+        remDebtExcess -= deduct;
+      }
+    }
+
+    // Ara ödeme makbuz geçmişine kaydet
+    if (!currentActiveDealer.payments) currentActiveDealer.payments = [];
+    currentActiveDealer.payments.unshift({
+      id: "pay-" + Date.now(),
+      date: dateStr,
+      amount: excessPayment,
+      desc: `Fatura Fazlası Borç Mahsubu (${receiptNo})`,
+      remainingTotalDebt: currentActiveDealer.totalDebt
+    });
   }
 
-  // Satılan Sigaraları Mevcut Depo Stoğundan Otomatik Düş
+  const grandTotalDebtAfterSale = currentActiveDealer.totalDebt || 0;
+
+  // 3. Satılan Sigaraları Mevcut Depo Stoğundan Otomatik Düş
   items.forEach(itm => {
     const cigId = itm.cigId;
     let cartonsToDeduct = 0;
@@ -2542,7 +2596,7 @@ function finalizeSaleTransaction(paidAmount) {
   openDedicatedDealerScreen(currentActiveDealer.id);
   renderDealersTable();
 
-  // Satış Fatura Modalını Aç
+  // Satış Fatura Modalını Aç (Kâr asla faturada yer almaz)
   openSalesInvoiceModal({
     isPaymentReceipt: false,
     receiptNo: receiptNo,
@@ -2555,7 +2609,7 @@ function finalizeSaleTransaction(paidAmount) {
     remainingDebt: remainingDebt,
     pastDebt: pastDebtBeforeThisSale,
     grandTotalDebt: grandTotalDebtAfterSale,
-    dateStr: "27 Ağustos 2026 " + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+    dateStr: dateStr
   });
 }
 
@@ -3726,13 +3780,20 @@ function renderDebtLists() {
         : `<div class="debt-val text-rose" style="font-weight:900;">₺ ${item.debt.toLocaleString('tr-TR')}</div>`;
 
       const actionsHtml = item.isPaid
-        ? `<div style="font-size:0.75rem; color:#64748b; font-style:italic;">Aktif borç kaydı bulunmuyor</div>`
-        : `<div style="display:flex; gap:8px; align-items:center;">
-            <button type="button" class="btn-emerald" onclick="openPayReceivableModal('dealer', '${item.id}')" style="padding:6px 12px; font-size:0.75rem; font-weight:800; cursor:pointer;">
-              <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M8 9h8a2 2 0 0 1 0 4H8a2 2 0 0 0 0 4h8"/></svg> Tahsil Et (Makbuz Kes)
+        ? `<div style="display:flex; gap:8px; align-items:center;">
+            <button type="button" class="pill-btn" onclick="openReceivableDetailsModal('dealer', '${item.id}')" style="background:rgba(59,130,246,0.12); border:1px solid rgba(59,130,246,0.35); color:#60a5fa; font-weight:800; padding:6px 12px; font-size:0.75rem; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Detayı Gör
             </button>
-            <button type="button" class="btn-delete-action" onclick="initiateReceivableDelete('dealer', '${item.id}')" style="padding:6px 12px; font-size:0.75rem; cursor:pointer;">
-              <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Borcu Sil
+          </div>`
+        : `<div style="display:flex; gap:8px; align-items:center;">
+            <button type="button" class="pill-btn" onclick="openReceivableDetailsModal('dealer', '${item.id}')" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.4); color:#60a5fa; font-weight:800; padding:6px 12px; font-size:0.75rem; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Detayı Gör
+            </button>
+            <button type="button" class="btn-emerald" onclick="openPayReceivableModal('dealer', '${item.id}')" style="padding:6px 12px; font-size:0.75rem; font-weight:800; cursor:pointer;">
+              <svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M8 9h8a2 2 0 0 1 0 4H8a2 2 0 0 0 0 4h8"/></svg> Tahsil Et
+            </button>
+            <button type="button" class="btn-delete-action" onclick="initiateReceivableDelete('dealer', '${item.id}')" style="padding:6px 10px; font-size:0.75rem; cursor:pointer;" title="Borcu Sıfırla">
+              <svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>`;
 
@@ -3770,11 +3831,14 @@ function renderDebtLists() {
           <div style="display:flex; align-items:center; gap:16px;">
             <div class="debt-val text-rose" style="font-weight:900;">₺ ${item.debt.toLocaleString('tr-TR')}</div>
             <div style="display:flex; gap:8px; align-items:center;">
-              <button type="button" class="btn-emerald" onclick="openPayReceivableModal('customer', '${item.id}')" style="padding:6px 12px; font-size:0.75rem; font-weight:800; cursor:pointer;">
-                <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M8 9h8a2 2 0 0 1 0 4H8a2 2 0 0 0 0 4h8"/></svg> Tahsil Et (Makbuz Kes)
+              <button type="button" class="pill-btn" onclick="openReceivableDetailsModal('customer', '${item.id}')" style="background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.4); color:#60a5fa; font-weight:800; padding:6px 12px; font-size:0.75rem; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Detayı Gör
               </button>
-              <button type="button" class="btn-delete-action" onclick="initiateReceivableDelete('customer', '${item.id}')" style="padding:6px 12px; font-size:0.75rem; cursor:pointer;">
-                <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Borcu Sil
+              <button type="button" class="btn-emerald" onclick="openPayReceivableModal('customer', '${item.id}')" style="padding:6px 12px; font-size:0.75rem; font-weight:800; cursor:pointer;">
+                <svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="6" x2="12" y2="18"/><path d="M8 9h8a2 2 0 0 1 0 4H8a2 2 0 0 0 0 4h8"/></svg> Tahsil Et
+              </button>
+              <button type="button" class="btn-delete-action" onclick="initiateReceivableDelete('customer', '${item.id}')" style="padding:6px 10px; font-size:0.75rem; cursor:pointer;">
+                <svg class="icon-inline" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
               </button>
             </div>
           </div>
@@ -3782,6 +3846,142 @@ function renderDebtLists() {
       `;
     }
   }).join('');
+}
+
+function openReceivableDetailsModal(type, id) {
+  const modal = document.getElementById('modal-receivable-details');
+  const titleEl = document.getElementById('rec-detail-target-name');
+  const subEl = document.getElementById('rec-detail-target-sub');
+  const totalDebtEl = document.getElementById('rec-detail-total-debt');
+  const orderCountEl = document.getElementById('rec-detail-order-count');
+  const listContainer = document.getElementById('rec-detail-orders-list');
+  const closeBtn = document.getElementById('btn-close-receivable-details-modal');
+  const doneBtn = document.getElementById('btn-done-receivable-details');
+
+  if (closeBtn) closeBtn.onclick = () => modal.classList.add('hidden');
+  if (doneBtn) doneBtn.onclick = () => modal.classList.add('hidden');
+
+  if (!modal || !listContainer) return;
+
+  if (type === 'dealer') {
+    const dealer = dealersData.find(d => d.id === id);
+    if (!dealer) return;
+
+    if (titleEl) titleEl.textContent = `${dealer.name} - Borç & Ürün Detayları`;
+    if (subEl) subEl.textContent = `${dealer.region || 'İstanbul'} • ${dealer.phone || 'Telefon Yok'} • Yetkili: ${dealer.owner || dealer.name}`;
+    if (totalDebtEl) totalDebtEl.textContent = `₺ ${(dealer.totalDebt || 0).toLocaleString('tr-TR')}`;
+
+    const salesList = Array.isArray(dealer.sales) ? dealer.sales : [];
+    if (orderCountEl) orderCountEl.textContent = `${salesList.length} Toplam Sipariş`;
+
+    if (salesList.length === 0) {
+      listContainer.innerHTML = `<div style="text-align:center; color:#64748b; padding:30px; background:#0b1120; border-radius:12px;">Bu satış noktasına ait geçmiş sipariş veya borç kaydı bulunamadı.</div>`;
+    } else {
+      listContainer.innerHTML = salesList.map((sale, idx) => {
+        const total = sale.total || sale.totalAmount || 0;
+        const paid = typeof sale.paid === 'number' ? sale.paid : (sale.paidAmount || 0);
+        const debt = typeof sale.debt === 'number' ? sale.debt : (sale.remainingDebt || 0);
+        const receipt = sale.receipt || `SİP-${idx + 1}`;
+        const date = sale.date || 'Tarih Yok';
+
+        const paymentStatusHtml = paid > 0 
+          ? `<span style="color:#34d399; font-weight:800; font-family:var(--font-mono);">₺ ${paid.toLocaleString('tr-TR')} Ödendi</span>`
+          : `<span style="color:#ef4444; font-weight:800; background:rgba(239,68,68,0.15); padding:3px 8px; border-radius:6px; font-size:0.75rem;">Hiç Ödeme Yapılmadı (₺ 0)</span>`;
+
+        const debtStatusHtml = debt > 0
+          ? `<span style="color:#f43f5e; font-weight:900; font-family:var(--font-mono); background:rgba(244,63,94,0.15); padding:3px 8px; border-radius:6px; font-size:0.8rem;">₺ ${debt.toLocaleString('tr-TR')} Kalan Borç</span>`
+          : `<span style="color:#10b981; font-weight:800; background:rgba(16,185,129,0.15); padding:3px 8px; border-radius:6px; font-size:0.75rem;">Tamamı Ödendi</span>`;
+
+        // Verilen Sigara / Ürün Kalemleri Tablosu
+        let itemsHtml = '';
+        if (Array.isArray(sale.itemsList) && sale.itemsList.length > 0) {
+          itemsHtml = `
+            <div style="margin-top:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:10px;">
+              <span style="font-size:0.72rem; color:#94a3b8; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:6px;">Teslim Edilen Sigaralar:</span>
+              <table style="width:100%; font-size:0.78rem; color:#e2e8f0; border-collapse:collapse;">
+                <thead>
+                  <tr style="color:#64748b; font-size:0.7rem; text-align:left; border-bottom:1px solid rgba(255,255,255,0.06);">
+                    <th style="padding:4px 0;">Ürün</th>
+                    <th style="padding:4px 6px; text-align:center;">Miktar</th>
+                    <th style="padding:4px 6px; text-align:right;">Birim Fiyat</th>
+                    <th style="padding:4px 0; text-align:right;">Tutar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sale.itemsList.map(itm => `
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.03);">
+                      <td style="padding:5px 0; font-weight:700; color:#ffffff;">${itm.name}</td>
+                      <td style="padding:5px 6px; text-align:center; color:#60a5fa; font-weight:800;">${itm.qty} ${itm.type === 'carton' ? 'Karton' : 'Paket'}</td>
+                      <td style="padding:5px 6px; text-align:right; color:#94a3b8; font-family:var(--font-mono);">₺ ${((itm.unitPrice || 0)).toLocaleString('tr-TR')}</td>
+                      <td style="padding:5px 0; text-align:right; font-weight:800; color:#38bdf8; font-family:var(--font-mono);">₺ ${((itm.total || 0)).toLocaleString('tr-TR')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        } else if (sale.items) {
+          itemsHtml = `
+            <div style="margin-top:8px; background:rgba(0,0,0,0.25); border-radius:6px; padding:8px 10px; font-size:0.78rem; color:#cbd5e1;">
+              <span style="color:#94a3b8; font-size:0.7rem; display:block;">Teslim Edilen Ürünler:</span>
+              <strong>${sale.items}</strong>
+            </div>
+          `;
+        }
+
+        return `
+          <div style="background:#0b1120; border:1px solid rgba(59,130,246,0.25); border-radius:12px; padding:14px 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="background:rgba(59,130,246,0.2); color:#93c5fd; font-family:var(--font-mono); font-size:0.75rem; font-weight:800; padding:3px 8px; border-radius:6px;">${receipt}</span>
+                <span style="color:#94a3b8; font-size:0.75rem;">${date}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:0.85rem; color:#ffffff; font-weight:900; font-family:var(--font-mono);">Sipariş: ₺ ${total.toLocaleString('tr-TR')}</span>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:10px;">
+              <div>
+                <span style="font-size:0.7rem; color:#94a3b8; display:block;">Ödeme Durumu:</span>
+                ${paymentStatusHtml}
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:0.7rem; color:#94a3b8; display:block;">Kalan Borç:</span>
+                ${debtStatusHtml}
+              </div>
+            </div>
+
+            ${itemsHtml}
+          </div>
+        `;
+      }).join('');
+    }
+  } else {
+    // Manuel Müşteri Alacağı
+    const cust = customerReceivablesData.find(c => c.id === id);
+    if (!cust) return;
+
+    if (titleEl) titleEl.textContent = `${cust.name} - Müşteri Borç Detayı`;
+    if (subEl) subEl.textContent = `Serbest Müşteri Alacağı • Vade: ${cust.dueDate ? new Date(cust.dueDate).toLocaleDateString('tr-TR') : 'Belirtilmedi'}`;
+    if (totalDebtEl) totalDebtEl.textContent = `₺ ${(cust.amount || 0).toLocaleString('tr-TR')}`;
+    if (orderCountEl) orderCountEl.textContent = `1 Kayıt`;
+
+    listContainer.innerHTML = `
+      <div style="background:#0b1120; border:1px solid rgba(59,130,246,0.25); border-radius:12px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <span style="color:#ffffff; font-weight:800; font-size:0.95rem;">${cust.name} Borç Kaydı</span>
+          <span style="color:#f43f5e; font-weight:900; font-family:var(--font-mono); font-size:1.1rem;">₺ ${(cust.amount || 0).toLocaleString('tr-TR')}</span>
+        </div>
+        <div style="font-size:0.8rem; color:#94a3b8;">
+          Vade Tarihi: <strong style="color:#fde68a;">${cust.dueDate ? new Date(cust.dueDate).toLocaleDateString('tr-TR') : 'Vade Belirtilmedi'}</strong>
+        </div>
+        ${cust.note ? `<div style="margin-top:8px; padding:8px; background:rgba(0,0,0,0.3); border-radius:6px; color:#cbd5e1; font-size:0.78rem;">Not: ${cust.note}</div>` : ''}
+      </div>
+    `;
+  }
+
+  modal.classList.remove('hidden');
 }
 
 /* ==========================================================================

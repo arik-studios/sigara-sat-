@@ -1100,9 +1100,15 @@
           </div>
         </div>
 
-        <div class="live-catalog-total-box">
-          <span class="total-label">SEÇİLEN TOPLAM TUTAR</span>
-          <div class="total-price-val" id="catalog-live-total">₺ 0</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="live-catalog-total-box" style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); padding:6px 14px; border-radius:10px; text-align:right;">
+            <span class="total-label" style="color:#34d399; font-size:0.65rem; font-weight:800; display:block;">ELDE EDİLEN KÂR</span>
+            <div class="total-price-val" id="catalog-live-profit" style="color:#10b981; font-weight:900; font-size:1.15rem; font-family:var(--font-mono);">+₺ 0</div>
+          </div>
+          <div class="live-catalog-total-box">
+            <span class="total-label">SEÇİLEN TOPLAM TUTAR</span>
+            <div class="total-price-val" id="catalog-live-total">₺ 0</div>
+          </div>
         </div>
 
         <button class="modal-close" id="btn-close-create-sale">&times;</button>
@@ -3317,6 +3323,52 @@
             <svg class="icon-inline" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Evet, Gün Sonunu Yap
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 37. MODAL: ALACAK DETAYLARI VE VERİLEN ÜRÜNLER GEÇMİŞİ MODALI -->
+  <div class="modal-overlay hidden" id="modal-receivable-details" style="z-index:99998;">
+    <div class="modal-card modal-lg" style="max-width:760px; background:linear-gradient(145deg, #0d1322 0%, #080d1a 100%); border:1px solid rgba(59,130,246,0.35); box-shadow:0 25px 60px rgba(0,0,0,0.9); border-radius:20px;">
+      <div class="modal-header" style="border-bottom:1px solid rgba(59,130,246,0.2); padding:16px 20px;">
+        <div class="modal-title-wrap">
+          <div class="modal-icon bg-blue" style="background:rgba(59,130,246,0.2); color:#60a5fa;">
+            <svg class="icon-inline" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title" id="rec-detail-target-name" style="color:#60a5fa; font-size:1.15rem; font-weight:900;">Alacak & Borç Detayları</h3>
+            <p class="modal-desc" id="rec-detail-target-sub" style="color:#94a3b8; font-size:0.75rem;">Verilen tüm vadeli siparişler, ödenen/kalan tutarlar ve teslim edilen sigaralar</p>
+          </div>
+        </div>
+        <button class="modal-close" id="btn-close-receivable-details-modal">&times;</button>
+      </div>
+
+      <div style="padding:20px; max-height:70vh; overflow-y:auto;">
+        <!-- Özet Kartı -->
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#111827; border:1px solid rgba(59,130,246,0.2); border-radius:12px; padding:14px 18px; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+          <div>
+            <span style="font-size:0.75rem; color:#94a3b8; display:block;">Toplam Güncel Borç Bakiyesi:</span>
+            <div id="rec-detail-total-debt" style="font-size:1.4rem; font-weight:900; color:#f43f5e; font-family:var(--font-mono);">₺ 0</div>
+          </div>
+          <div style="text-align:right;">
+            <span style="font-size:0.75rem; color:#94a3b8; display:block;">Kayıtlı Borçlu Sipariş Sayısı:</span>
+            <div id="rec-detail-order-count" style="font-size:1.1rem; font-weight:800; color:#60a5fa;">0 Sipariş</div>
+          </div>
+        </div>
+
+        <!-- Siparişler ve Verilen Ürünler Listesi -->
+        <h4 style="color:#e2e8f0; font-size:0.88rem; font-weight:800; margin:0 0 12px 0; display:flex; align-items:center; gap:6px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Vadeli Siparişler & Verilen Ürün Kalemleri
+        </h4>
+
+        <div id="rec-detail-orders-list" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- JS tarafından dinamik doldurulur -->
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding:14px 20px; border-top:1px solid rgba(255,255,255,0.06); display:flex; justify-content:flex-end;">
+        <button type="button" class="btn-secondary" id="btn-done-receivable-details" style="padding:10px 20px; font-weight:800;">Kapat</button>
       </div>
     </div>
   </div>
