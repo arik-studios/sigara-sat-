@@ -156,6 +156,10 @@ ALTER TABLE public.support_messages ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow public all for support_messages" ON public.support_messages;
 CREATE POLICY "Allow public all for support_messages" ON public.support_messages FOR ALL USING (true) WITH CHECK (true);
 
+ALTER TABLE public.support_messages ADD COLUMN IF NOT EXISTS ticket_id TEXT DEFAULT 'TKT-GENEL';
+ALTER TABLE public.support_messages ADD COLUMN IF NOT EXISTS ticket_subject TEXT DEFAULT 'Genel Destek';
+ALTER TABLE public.support_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT;
+
 -- 10. TOPTANCILAR & CİHAZ KİLİTLİ LİSANSLAR TABLOSU (MULTI-TENANT & KAÇAK KORUMA)
 CREATE TABLE IF NOT EXISTS public.tenants (
     tenant_id TEXT PRIMARY KEY,

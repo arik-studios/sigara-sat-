@@ -3559,61 +3559,145 @@
   </div>
 
   <!-- ==========================================================================
-       MODAL: CANLI DESTEK & PATRON HATTI (FOTOĞRAFLI & DOSYALI SOHBET)
+       MODAL: CANLI DESTEK & DESTEK TALEPLERİ (TICKET & MESAJLAŞMA SİSTEMİ)
        ========================================================================== -->
   <div id="modal-support-chat" class="hidden" style="position:fixed !important; top:0; left:0; width:100vw; height:100vh; background:rgba(3,7,18,0.92); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); z-index:99999999; display:none; align-items:center; justify-content:center; padding:14px; box-sizing:border-box;">
-    <div class="modal-card" style="max-width:540px; width:100%; height:85vh; max-height:750px; display:flex; flex-direction:column; background:#0b1120; border:1px solid rgba(16,185,129,0.4); box-shadow:0 25px 60px rgba(0,0,0,0.9), 0 0 35px rgba(16,185,129,0.2); border-radius:18px; overflow:hidden;">
+    <div class="modal-card" style="max-width:580px; width:100%; height:88vh; max-height:780px; display:flex; flex-direction:column; background:#0b1120; border:1px solid rgba(16,185,129,0.4); box-shadow:0 25px 60px rgba(0,0,0,0.95), 0 0 35px rgba(16,185,129,0.2); border-radius:20px; overflow:hidden;">
       
-      <!-- Modal Header -->
-      <div class="modal-header" style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; background:#090e1a;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div style="width:36px; height:36px; border-radius:10px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; color:#34d399;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <!-- GÖRÜNÜM 1: DESTEK TALEPLERİ LİSTESİ -->
+      <div id="app-support-view-tickets" style="display:flex; flex-direction:column; height:100%;">
+        <!-- Header -->
+        <div class="modal-header" style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; background:#090e1a;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:40px; height:40px; border-radius:12px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); display:flex; align-items:center; justify-content:center; color:#34d399;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div>
+              <h3 style="font-size:1.05rem; font-weight:900; color:#ffffff; margin:0;">Destek Taleplerim</h3>
+              <span style="font-size:0.72rem; color:#94a3b8;">Yönetim ile resmi görüşmeler ve talepler</span>
+            </div>
           </div>
+          <button type="button" class="btn-close-modal" id="btn-close-support-modal" style="background:none; border:none; color:#94a3b8; font-size:1.6rem; cursor:pointer; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px;">&times;</button>
+        </div>
+
+        <!-- Üst Eylem Çubuğu: Yeni Destek Talebi Oluştur Butonu -->
+        <div style="padding:14px 18px; background:rgba(255,255,255,0.02); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between;">
+          <span style="font-size:0.8rem; color:#cbd5e1; font-weight:700;">Konuşma Geçmişi</span>
+          <button type="button" id="btn-open-create-ticket-view" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%); border:1px solid #34d399; color:#fff; padding:8px 16px; border-radius:10px; font-size:0.82rem; font-weight:900; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 15px rgba(16,185,129,0.3);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Yeni Destek Oluştur
+          </button>
+        </div>
+
+        <!-- Talepler Listesi Kutusu -->
+        <div id="app-support-tickets-list" style="flex:1; padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#060913;">
+          <!-- JS Doldurur -->
+        </div>
+      </div>
+
+      <!-- GÖRÜNÜM 2: YENİ DESTEK TALEBİ OLUŞTURMA FORMU -->
+      <div id="app-support-view-create" style="display:none; flex-direction:column; height:100%;">
+        <!-- Header -->
+        <div class="modal-header" style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; background:#090e1a;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <button type="button" id="btn-back-to-tickets-from-create" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer;" title="Taleplere Dön">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            </button>
+            <div>
+              <h3 style="font-size:1.05rem; font-weight:900; color:#ffffff; margin:0;">Yeni Destek Talebi</h3>
+              <span style="font-size:0.72rem; color:#34d399;">Patron / Yönetim Bildirimi</span>
+            </div>
+          </div>
+          <button type="button" class="btn-close-modal" id="btn-close-support-modal-create" style="background:none; border:none; color:#94a3b8; font-size:1.6rem; cursor:pointer;">&times;</button>
+        </div>
+
+        <!-- Form Gövdesi -->
+        <div style="flex:1; padding:20px; overflow-y:auto; background:#060913; display:flex; flex-direction:column; gap:16px;">
           <div>
-            <h3 style="font-size:1.02rem; font-weight:900; color:#ffffff; margin:0;">Canlı Destek</h3>
-            <span style="font-size:0.7rem; color:#34d399; font-weight:700; display:flex; align-items:center; gap:4px;">
-              <span style="width:6px; height:6px; border-radius:50%; background:#10b981; display:inline-block;"></span> Canlı Hat Aktif
-            </span>
+            <label style="display:block; font-size:0.78rem; font-weight:800; color:#a5b4fc; margin-bottom:6px;">TALEP KONUSU / BAŞLIK</label>
+            <input type="text" id="app-new-ticket-subject" placeholder="Örn: Eksik Koli Bildirimi / Fatura Talebi / Fiyat Sorusu" style="width:100%; box-sizing:border-box; background:#0b1120; border:1px solid rgba(99,102,241,0.4); color:#ffffff; padding:12px 14px; border-radius:10px; font-size:0.9rem; outline:none;" />
+          </div>
+
+          <div style="flex:1; display:flex; flex-direction:column;">
+            <label style="display:block; font-size:0.78rem; font-weight:800; color:#a5b4fc; margin-bottom:6px;">TALEBİNİZ VE MESAJINIZ</label>
+            <textarea id="app-new-ticket-message" placeholder="Talebinizi, sorununuzu veya iletmek istediğiniz detayları buraya yazınız..." style="width:100%; flex:1; min-height:120px; box-sizing:border-box; background:#0b1120; border:1px solid rgba(255,255,255,0.12); color:#ffffff; padding:12px 14px; border-radius:10px; font-size:0.88rem; outline:none; resize:none; line-height:1.4;"></textarea>
+          </div>
+
+          <!-- Dosya Ekleme & Önizleme Alanı -->
+          <div style="background:rgba(255,255,255,0.03); border:1px dashed rgba(255,255,255,0.15); border-radius:12px; padding:14px; text-align:center;">
+            <input type="file" id="app-new-ticket-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" style="display:none;" />
+            
+            <div id="app-new-ticket-preview-box" style="display:none; align-items:center; justify-content:space-between; background:rgba(16,185,129,0.12); border:1px solid #10b981; border-radius:8px; padding:8px 12px; margin-bottom:10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.4rem;">📎</span>
+                <span id="app-new-ticket-preview-name" style="font-size:0.8rem; color:#fff; font-weight:700; max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">dosya.pdf</span>
+              </div>
+              <button type="button" id="btn-remove-new-ticket-file" style="background:none; border:none; color:#fb7185; font-size:1.2rem; cursor:pointer;">&times;</button>
+            </div>
+
+            <button type="button" id="btn-trigger-ticket-file" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.35); color:#a5b4fc; padding:8px 16px; border-radius:8px; font-size:0.82rem; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              Fotoğraf, PDF, TXT veya Belge Ekle (Opsiyonel)
+            </button>
+          </div>
+
+          <button type="button" id="btn-submit-create-ticket" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%); border:1px solid #34d399; color:#ffffff; padding:13px 20px; border-radius:12px; font-size:0.95rem; font-weight:900; cursor:pointer; box-shadow:0 8px 25px rgba(16,185,129,0.35); display:flex; align-items:center; justify-content:center; gap:8px;">
+            <span>🚀 Talebi Başlat ve Gönder</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- GÖRÜNÜM 3: TALEP İÇİ MESAJLAŞMA & SOHBET PENCERESİ -->
+      <div id="app-support-view-chat" style="display:none; flex-direction:column; height:100%;">
+        <!-- Header -->
+        <div class="modal-header" style="padding:14px 18px; border-bottom:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; justify-content:space-between; background:#090e1a;">
+          <div style="display:flex; align-items:center; gap:10px; overflow:hidden;">
+            <button type="button" id="btn-back-to-tickets-from-chat" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; width:34px; height:34px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" title="Taleplere Dön">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            </button>
+            <div style="overflow:hidden;">
+              <h3 id="app-chat-active-subject" style="font-size:0.96rem; font-weight:900; color:#ffffff; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Destek Talebi</h3>
+              <span id="app-chat-active-code" style="font-size:0.68rem; color:#34d399; font-weight:800; font-family:monospace;">#DST-1001</span>
+            </div>
+          </div>
+          <button type="button" class="btn-close-modal" id="btn-close-support-modal-chat" style="background:none; border:none; color:#94a3b8; font-size:1.6rem; cursor:pointer;">&times;</button>
+        </div>
+
+        <!-- Chat Messages Body -->
+        <div id="app-support-chat-box" style="flex:1; padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#060913;">
+          <div style="text-align:center; color:#64748b; font-size:0.8rem; margin:auto;">
+            Mesajlar yükleniyor...
           </div>
         </div>
-        <button type="button" class="btn-close-modal" id="btn-close-support-chat" style="background:none; border:none; color:#94a3b8; font-size:1.6rem; cursor:pointer; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:8px;">&times;</button>
-      </div>
 
-      <!-- Chat Messages Body -->
-      <div id="app-support-chat-box" style="flex:1; padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#060913;">
-        <div style="text-align:center; color:#64748b; font-size:0.8rem; margin:auto;">
-          Yükleniyor...
-        </div>
-      </div>
-
-      <!-- Photo / Document Preview Strip -->
-      <div id="app-support-preview-strip" style="display:none; padding:8px 12px; background:rgba(16,185,129,0.1); border-top:1px solid rgba(16,185,129,0.3); align-items:center; justify-content:space-between;">
-        <div style="display:flex; align-items:center; gap:10px;">
-          <img id="app-support-preview-img" src="" alt="Önizleme" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #34d399; display:none;" />
-          <div id="app-support-preview-doc" style="display:none; align-items:center; gap:8px; background:rgba(255,255,255,0.08); padding:6px 12px; border-radius:8px; border:1px solid #34d399;">
-            <span style="font-size:1.3rem;">📄</span>
-            <span id="app-support-preview-doc-name" style="font-size:0.75rem; color:#fff; font-weight:700; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">belge.pdf</span>
+        <!-- Attachment Preview Strip -->
+        <div id="app-support-preview-strip" style="display:none; padding:8px 12px; background:rgba(16,185,129,0.1); border-top:1px solid rgba(16,185,129,0.3); align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <img id="app-support-preview-img" src="" alt="Önizleme" style="width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid #34d399; display:none;" />
+            <div id="app-support-preview-doc" style="display:none; align-items:center; gap:8px; background:rgba(255,255,255,0.08); padding:6px 12px; border-radius:8px; border:1px solid #34d399;">
+              <span style="font-size:1.3rem;">📄</span>
+              <span id="app-support-preview-doc-name" style="font-size:0.75rem; color:#fff; font-weight:700; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">belge.pdf</span>
+            </div>
+            <span style="font-size:0.75rem; color:#34d399; font-weight:700;">Dosya eklendi</span>
           </div>
-          <span style="font-size:0.75rem; color:#34d399; font-weight:700;">Dosya eklendi</span>
+          <button type="button" id="btn-remove-app-preview" style="background:none; border:none; color:#fb7185; font-size:1.2rem; cursor:pointer; font-weight:bold;">&times;</button>
         </div>
-        <button type="button" id="btn-remove-app-preview" style="background:none; border:none; color:#fb7185; font-size:1.2rem; cursor:pointer; font-weight:bold;">&times;</button>
-      </div>
 
-      <!-- Message Input Bar -->
-      <div style="padding:12px 14px; background:#090e1a; border-top:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; gap:8px;">
-        <input type="file" id="app-support-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" style="display:none;" />
-        
-        <button type="button" id="btn-app-attach-photo" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#34d399; width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" title="Fotoğraf, PDF, Word veya Belge Ekle">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-        </button>
+        <!-- Message Input Bar -->
+        <div style="padding:12px 14px; background:#090e1a; border-top:1px solid rgba(255,255,255,0.08); display:flex; align-items:center; gap:8px;">
+          <input type="file" id="app-support-file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" style="display:none;" />
+          
+          <button type="button" id="btn-app-attach-photo" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12); color:#34d399; width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;" title="Fotoğraf, PDF, TXT veya Belge Ekle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
 
-        <input type="text" id="app-support-input-text" placeholder="Mesaj yazın..." style="flex:1; background:#060913; border:1px solid rgba(255,255,255,0.1); color:#ffffff; padding:10px 14px; border-radius:10px; font-size:0.85rem; outline:none;" />
+          <input type="text" id="app-support-input-text" placeholder="Yanıtınızı yazın..." style="flex:1; background:#060913; border:1px solid rgba(255,255,255,0.1); color:#ffffff; padding:10px 14px; border-radius:10px; font-size:0.85rem; outline:none;" />
 
-        <button type="button" id="btn-app-send-message" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%); border:1px solid #34d399; color:#ffffff; padding:10px 16px; border-radius:10px; font-size:0.85rem; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          Gönder
-        </button>
+          <button type="button" id="btn-app-send-message" style="background:linear-gradient(135deg, #10b981 0%, #059669 100%); border:1px solid #34d399; color:#ffffff; padding:10px 16px; border-radius:10px; font-size:0.85rem; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; flex-shrink:0;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Gönder
+          </button>
+        </div>
       </div>
 
     </div>
@@ -3632,12 +3716,13 @@
   </div>
 
   <!-- ==========================================================================
-       LİSANS & DONANIM CİHAZ KİLİDİ MODALI (KAÇAK KULLANIMI ENGELLEME)
+       LİSANS & DONANIM CİHAZ KİLİDİ MODALI (AÇILIŞTA GEÇİLEMEZ KİLİT)
        ========================================================================== -->
-  <div id="modal-license-gate" class="hidden" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(3,7,18,0.94); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); z-index:99999999; display:none; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;">
+  <div id="modal-license-gate" style="position:fixed !important; top:0; left:0; width:100vw; height:100vh; background:#030712; z-index:999999999; display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;">
     <div style="background:#090e1a; border:1px solid rgba(99,102,241,0.35); box-shadow:0 30px 80px rgba(0,0,0,0.95), 0 0 50px rgba(99,102,241,0.25); border-radius:20px; max-width:480px; width:100%; padding:28px 24px; text-align:center; position:relative;">
       
-      <button type="button" id="btn-close-license-gate" onclick="window.closeLicenseModal && window.closeLicenseModal();" style="position:absolute; top:16px; right:16px; background:none; border:none; color:#64748b; font-size:1.6rem; cursor:pointer; line-height:1;">&times;</button>
+      <!-- Lisanssızken kapatma butonu YOKTUR - Kesinlikle geçilemez -->
+      <button type="button" id="btn-close-license-gate" onclick="window.closeLicenseModal && window.closeLicenseModal();" style="display:none; position:absolute; top:16px; right:16px; background:none; border:none; color:#64748b; font-size:1.6rem; cursor:pointer; line-height:1;">&times;</button>
 
       <div style="width:68px; height:68px; border-radius:20px; background:linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(168,85,247,0.2) 100%); border:1px solid #818cf8; display:flex; align-items:center; justify-content:center; margin:0 auto 18px; color:#a5b4fc;">
         <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>

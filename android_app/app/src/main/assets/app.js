@@ -8467,17 +8467,22 @@ window.resetTestDataForRestoreDemo = function() {
 
 /* ==========================================================================
    25. TOPTANCI & PATRON CANLI DESTEK VE FOTOĞRAFLI MESAJLAŞMA SİSTEMİ
+/* ==========================================================================
+   25. TOPTANCI & PATRON CANLI DESTEK VE BİLET / KONUŞMA (TICKET) SİSTEMİ
    ========================================================================== */
 (function initSupportChatModule() {
   const SUPABASE_URL = "https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1";
   const SUPABASE_KEY = "sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9";
 
   let chatMessages = [];
+  let supportTickets = [];
+  let activeTicketId = null;
   let pendingAttachment = null; // { type: 'image' | 'document', data: base64, name: string }
+  let pendingNewTicketAttachment = null;
   let lastSeenMessageId = 0;
 
-  // Yerel Sohbet Önbelleği (Admin Supabase'den silse dahi telefonda silinmez)
   const LOCAL_CHAT_STORAGE = 'app_local_support_chat_history';
+  const LOCAL_TICKETS_STORAGE = 'app_local_support_tickets_list';
 
   function getLocalChatHistory() {
     try {
@@ -8490,15 +8495,64 @@ window.resetTestDataForRestoreDemo = function() {
 
   function saveLocalChatHistory(msgs) {
     try {
-      localStorage.setItem(LOCAL_CHAT_STORAGE, JSON.stringify(msgs.slice(-250)));
+      localStorage.setItem(LOCAL_CHAT_STORAGE, JSON.stringify(msgs.slice(-300)));
     } catch (e) {}
   }
 
-  // Başlangıçta yerel hafızadan yükle
+  function getLocalTickets() {
+    try {
+      const raw = localStorage.getItem(LOCAL_TICKETS_STORAGE);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveLocalTickets(tickets) {
+    try {
+      localStorage.setItem(LOCAL_TICKETS_STORAGE, JSON.stringify(tickets));
+    } catch (e) {}
+  }
+
   chatMessages = getLocalChatHistory();
+  supportTickets = getLocalTickets();
   if (chatMessages.length > 0) {
     lastSeenMessageId = Math.max(...chatMessages.map(m => Number(m.id) || 0));
   }
+
+  function syncTicketsFromMessages() {
+    const ticketMap = new Map();
+    supportTickets.forEach(t => {
+      if (t.ticket_id) ticketMap.set(t.ticket_id, t);
+    });
+
+    chatMessages.forEach(m => {
+      const tId = m.ticket_id || 'DST-1000';
+      const subj = m.ticket_subject || 'Genel Destek & İletişim';
+      if (!ticketMap.has(tId)) {
+        ticketMap.set(tId, {
+          ticket_id: tId,
+          subject: subj,
+          created_at: m.created_at || new Date().toISOString(),
+          status: 'open',
+          last_message: m.message_text || 'Ek dosya gönderildi'
+        });
+      } else {
+        const existing = ticketMap.get(tId);
+        existing.last_message = m.message_text || 'Ek dosya gönderildi';
+        existing.last_time = m.created_at || existing.created_at;
+        if (m.sender_role === 'admin') {
+          existing.status = 'replied';
+        }
+      }
+    });
+
+    supportTickets = Array.from(ticketMap.values());
+    supportTickets.sort((a, b) => new Date(b.last_time || b.created_at || 0) - new Date(a.last_time || a.created_at || 0));
+    saveLocalTickets(supportTickets);
+  }
+
+  syncTicketsFromMessages();
 
   function playNotificationSound() {
     try {
@@ -8525,12 +8579,12 @@ window.resetTestDataForRestoreDemo = function() {
     } catch (e) {}
   }
 
-  function showNotificationBanner(text) {
+  function showNotificationBanner(text, ticketId) {
     const banner = document.getElementById('app-support-notification-banner');
     const textEl = document.getElementById('app-support-notification-text');
     if (!banner || !textEl) return;
 
-    textEl.textContent = text || 'Yeni mesajınız var.';
+    textEl.textContent = text || 'Patron yeni bir mesaj gönderdi.';
     banner.style.top = '24px';
     playNotificationSound();
     triggerVibration();
@@ -8538,19 +8592,19 @@ window.resetTestDataForRestoreDemo = function() {
     banner.onclick = () => {
       banner.style.top = '-100px';
       openChatModal();
+      if (ticketId) openTicketChat(ticketId);
     };
 
     setTimeout(() => {
       if (banner.style.top === '24px') {
         banner.style.top = '-100px';
       }
-    }, 6000);
+    }, 6500);
   }
 
   async function fetchMessages(isBackground = true) {
     try {
-      const tenantId = localStorage.getItem('wholesaler_active_tenant_id') || window.CURRENT_TENANT_ID || 'default_tenant';
-      const res = await fetch(`${SUPABASE_URL}/support_messages?order=created_at.asc&limit=150`, {
+      const res = await fetch(`${SUPABASE_URL}/support_messages?order=created_at.asc&limit=250`, {
         headers: {
           'apikey': SUPABASE_KEY,
           'Authorization': `Bearer ${SUPABASE_KEY}`
@@ -8562,7 +8616,6 @@ window.resetTestDataForRestoreDemo = function() {
 
       const prevLastId = lastSeenMessageId;
       
-      // Yerel mesajlarla buluttaki yeni mesajları ID'ye göre birleştir
       const map = new Map();
       chatMessages.forEach(m => { if (m.id) map.set(m.id, m); });
       remoteData.forEach(m => { if (m.id) map.set(m.id, m); });
@@ -8570,20 +8623,25 @@ window.resetTestDataForRestoreDemo = function() {
       chatMessages.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
       saveLocalChatHistory(chatMessages);
 
+      syncTicketsFromMessages();
+
       if (remoteData.length > 0) {
         const latestMsg = remoteData[remoteData.length - 1];
         lastSeenMessageId = Math.max(...remoteData.map(m => Number(m.id) || 0));
 
-        // Yeni Patron mesajı kontrolü -> Bildirim & Ses & Titreşim
         if (prevLastId > 0 && latestMsg.id > prevLastId && latestMsg.sender_role === 'admin') {
-          showNotificationBanner(latestMsg.message_text || '📎 Dosya / Belge gönderildi');
+          showNotificationBanner(latestMsg.message_text || '📎 Yeni dosya/belge iletildi', latestMsg.ticket_id);
         }
       }
 
       updateUnreadBadge();
+      
       const modal = document.getElementById('modal-support-chat');
-      if (modal && !modal.classList.contains('hidden')) {
-        renderChatMessages();
+      if (modal && modal.style.display === 'flex') {
+        renderTicketsList();
+        if (activeTicketId) {
+          renderChatMessages();
+        }
       }
     } catch (e) {
       console.warn("Destek mesajları çekilemedi:", e);
@@ -8605,22 +8663,76 @@ window.resetTestDataForRestoreDemo = function() {
     }
   }
 
-  function renderChatMessages() {
-    const box = document.getElementById('app-support-chat-box');
-    if (!box) return;
+  // 1. GÖRÜNÜM: DESTEK TALEPLERİ LİSTESİ RENDER
+  function renderTicketsList() {
+    const listEl = document.getElementById('app-support-tickets-list');
+    if (!listEl) return;
 
-    if (chatMessages.length === 0) {
-      box.innerHTML = `
-        <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
-          <div style="font-size:2rem; margin-bottom:8px;">💬</div>
-          Canlı Destek hattına hoş geldiniz.<br>
-          Patron & Yönetim ile buradan mesajlaşabilir, fotoğraf ve PDF/Word belgeleri gönderebilirsiniz.
+    if (supportTickets.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:30px 20px;">
+          <div style="font-size:2.4rem; margin-bottom:12px;">📁</div>
+          <strong style="color:#ffffff; font-size:1rem; display:block; margin-bottom:6px;">Henüz Destek Talebiniz Yok</strong>
+          Patron & Yönetim ile görüşmek istediğiniz bir konu varsa yukarıdaki <br>
+          <strong style="color:#34d399;">"Yeni Destek Oluştur"</strong> butonuna basarak anında talep açabilirsiniz.
         </div>
       `;
       return;
     }
 
-    box.innerHTML = chatMessages.map(m => {
+    listEl.innerHTML = supportTickets.map(t => {
+      const isReplied = t.status === 'replied';
+      const statusBadge = isReplied
+        ? '<span style="font-size:0.7rem; background:rgba(16,185,129,0.2); color:#34d399; padding:2px 8px; border-radius:6px; font-weight:800; border:1px solid rgba(16,185,129,0.3);">🟢 Yanıtlandı</span>'
+        : '<span style="font-size:0.7rem; background:rgba(234,179,8,0.2); color:#facc15; padding:2px 8px; border-radius:6px; font-weight:800; border:1px solid rgba(234,179,8,0.3);">🟡 Beklemede</span>';
+
+      const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      const snippet = (t.last_message || 'Görüşme başlatıldı').substring(0, 75);
+
+      return `
+        <div style="background:#0b1120; border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:0.72rem; font-family:monospace; background:rgba(99,102,241,0.2); color:#a5b4fc; padding:2px 6px; border-radius:5px; font-weight:800;">#${t.ticket_id}</span>
+              <strong style="font-size:0.92rem; color:#ffffff;">${escapeHtml(t.subject)}</strong>
+            </div>
+            ${statusBadge}
+          </div>
+
+          <div style="font-size:0.8rem; color:#94a3b8; line-height:1.4;">
+            ${escapeHtml(snippet)}
+          </div>
+
+          <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.05);">
+            <span style="font-size:0.68rem; color:#64748b;">📅 ${dateStr}</span>
+            <button type="button" onclick="window.openSupportTicketChat('${t.ticket_id}')" style="background:linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); border:1px solid #6366f1; color:#ffffff; font-size:0.78rem; font-weight:800; padding:6px 14px; border-radius:8px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; box-shadow:0 2px 8px rgba(79,70,229,0.3);">
+              💬 Mesajları Gör
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 2. GÖRÜNÜM: SEÇİLEN TALEBİN SOHBET MESAJLARINI RENDER ET
+  function renderChatMessages() {
+    const box = document.getElementById('app-support-chat-box');
+    if (!box) return;
+
+    const filtered = chatMessages.filter(m => !activeTicketId || m.ticket_id === activeTicketId);
+
+    if (filtered.length === 0) {
+      box.innerHTML = `
+        <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
+          <div style="font-size:2rem; margin-bottom:8px;">💬</div>
+          Bu talep için henüz bir mesaj bulunmuyor.<br>
+          Aşağıdaki alandan mesajınızı ve varsa belgenizi gönderebilirsiniz.
+        </div>
+      `;
+      return;
+    }
+
+    box.innerHTML = filtered.map(m => {
       const isMe = m.sender_role === 'toptanci';
       const alignStyle = isMe ? 'margin-left:auto; text-align:right;' : 'margin-right:auto; text-align:left;';
       const bubbleBg = isMe
@@ -8628,7 +8740,7 @@ window.resetTestDataForRestoreDemo = function() {
         : 'background:#1e293b; color:#e2e8f0; border-bottom-left-radius:3px; border:1px solid rgba(255,255,255,0.06);';
       const roleBadge = isMe
         ? '<span style="font-size:0.68rem; background:rgba(255,255,255,0.25); padding:1px 6px; border-radius:4px; font-weight:800;">Ben</span>'
-        : '<span style="font-size:0.68rem; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:1px 6px; border-radius:4px; font-weight:800;">Yönetim</span>';
+        : '<span style="font-size:0.68rem; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:1px 6px; border-radius:4px; font-weight:800;">Patron / Yönetim</span>';
 
       const timeStr = m.created_at ? new Date(m.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
 
@@ -8641,7 +8753,6 @@ window.resetTestDataForRestoreDemo = function() {
             </div>
           `;
         } else {
-          // PDF, Word veya Belge
           const fileName = m.attachment_name || 'indirilen_belge';
           attachmentHtml = `
             <div style="margin-top:8px; margin-bottom:4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; text-align:left;">
@@ -8666,7 +8777,7 @@ window.resetTestDataForRestoreDemo = function() {
           </div>
           <div style="display:inline-block; padding:10px 14px; border-radius:12px; font-size:0.85rem; line-height:1.4; word-break:break-word; text-align:left; box-shadow:0 2px 8px rgba(0,0,0,0.2); ${bubbleBg}">
             ${attachmentHtml}
-            ${m.message_text ? `<div>${m.message_text}</div>` : ''}
+            ${m.message_text ? `<div>${escapeHtml(m.message_text)}</div>` : ''}
           </div>
         </div>
       `;
@@ -8701,6 +8812,146 @@ window.resetTestDataForRestoreDemo = function() {
     };
   }
 
+  function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  // GÖRÜNÜMLER ARASI GEÇİŞ YARDIMCILARI
+  function showTicketsListView() {
+    const vTickets = document.getElementById('app-support-view-tickets');
+    const vCreate = document.getElementById('app-support-view-create');
+    const vChat = document.getElementById('app-support-view-chat');
+    if (vTickets) vTickets.style.display = 'flex';
+    if (vCreate) vCreate.style.display = 'none';
+    if (vChat) vChat.style.display = 'none';
+    renderTicketsList();
+  }
+
+  function showCreateTicketView() {
+    const vTickets = document.getElementById('app-support-view-tickets');
+    const vCreate = document.getElementById('app-support-view-create');
+    const vChat = document.getElementById('app-support-view-chat');
+    if (vTickets) vTickets.style.display = 'none';
+    if (vCreate) vCreate.style.display = 'flex';
+    if (vChat) vChat.style.display = 'none';
+
+    // Alanları sıfırla
+    const subjInp = document.getElementById('app-new-ticket-subject');
+    const msgInp = document.getElementById('app-new-ticket-message');
+    const fileInp = document.getElementById('app-new-ticket-file-input');
+    const prevBox = document.getElementById('app-new-ticket-preview-box');
+    if (subjInp) subjInp.value = '';
+    if (msgInp) msgInp.value = '';
+    if (fileInp) fileInp.value = '';
+    if (prevBox) prevBox.style.display = 'none';
+    pendingNewTicketAttachment = null;
+  }
+
+  function openTicketChat(ticketId) {
+    activeTicketId = ticketId;
+    const vTickets = document.getElementById('app-support-view-tickets');
+    const vCreate = document.getElementById('app-support-view-create');
+    const vChat = document.getElementById('app-support-view-chat');
+    if (vTickets) vTickets.style.display = 'none';
+    if (vCreate) vCreate.style.display = 'none';
+    if (vChat) vChat.style.display = 'flex';
+
+    const t = supportTickets.find(x => x.ticket_id === ticketId);
+    const subjEl = document.getElementById('app-chat-active-subject');
+    const codeEl = document.getElementById('app-chat-active-code');
+    if (subjEl) subjEl.textContent = t ? t.subject : 'Destek Talebi';
+    if (codeEl) codeEl.textContent = `#${ticketId}`;
+
+    renderChatMessages();
+    fetchMessages(false);
+  }
+
+  // YENİ DESTEK TALEBİ GÖNDER & BAŞLAT
+  async function submitNewTicket() {
+    const subjInp = document.getElementById('app-new-ticket-subject');
+    const msgInp = document.getElementById('app-new-ticket-message');
+    const submitBtn = document.getElementById('btn-submit-create-ticket');
+
+    const subject = (subjInp ? subjInp.value : '').trim();
+    const message = (msgInp ? msgInp.value : '').trim();
+    const att = pendingNewTicketAttachment;
+
+    if (!subject) {
+      alert("Lütfen destek talebiniz için bir konu/başlık yazın!");
+      if (subjInp) subjInp.focus();
+      return;
+    }
+
+    if (!message && !att) {
+      alert("Lütfen talebinizi anlatan bir açıklama mesajı yazın veya dosya ekleyin!");
+      if (msgInp) msgInp.focus();
+      return;
+    }
+
+    try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Talep Başlatılıyor...";
+      }
+
+      const tenantId = localStorage.getItem('wholesaler_active_tenant_id') || window.CURRENT_TENANT_ID || 'default_tenant';
+      const ticketId = 'DST-' + Math.floor(1000 + Math.random() * 9000);
+
+      const ticketObj = {
+        ticket_id: ticketId,
+        subject: subject,
+        status: 'open',
+        created_at: new Date().toISOString(),
+        last_message: message || (att ? att.name : '')
+      };
+
+      supportTickets.unshift(ticketObj);
+      saveLocalTickets(supportTickets);
+
+      const msgRecord = {
+        ticket_id: ticketId,
+        ticket_subject: subject,
+        tenant_id: tenantId,
+        sender_role: 'toptanci',
+        sender_name: 'Saha Toptancı',
+        message_text: message || (att ? `📎 ${att.name}` : ''),
+        image_url: att ? att.data : null,
+        attachment_name: att ? att.name : null,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+
+      chatMessages.push({ ...msgRecord, id: Date.now() });
+      saveLocalChatHistory(chatMessages);
+
+      // Supabase'e gönder
+      await fetch(`${SUPABASE_URL}/support_messages`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(msgRecord)
+      });
+
+      showAppToast(`"${subject}" talebiniz başarıyla oluşturuldu!`, 'success');
+      openTicketChat(ticketId);
+
+    } catch (err) {
+      console.warn("Talep oluşturma hatası:", err);
+      showAppToast("Talep yerel olarak oluşturuldu.", 'info');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>🚀 Talebi Başlat ve Gönder</span>`;
+      }
+    }
+  }
+
+  // AKTİF TALEP İÇİNE YENİ MESAJ GÖNDER
   async function sendMessage() {
     const textInp = document.getElementById('app-support-input-text');
     const sendBtn = document.getElementById('btn-app-send-message');
@@ -8722,8 +8973,12 @@ window.resetTestDataForRestoreDemo = function() {
       }
 
       const tenantId = localStorage.getItem('wholesaler_active_tenant_id') || window.CURRENT_TENANT_ID || 'default_tenant';
+      const t = supportTickets.find(x => x.ticket_id === activeTicketId);
+      const subject = t ? t.subject : 'Genel Destek';
 
       const msgRecord = {
+        ticket_id: activeTicketId || 'DST-1000',
+        ticket_subject: subject,
         tenant_id: tenantId,
         sender_role: 'toptanci',
         sender_name: 'Saha Toptancı',
@@ -8734,13 +8989,12 @@ window.resetTestDataForRestoreDemo = function() {
         created_at: new Date().toISOString()
       };
 
-      // 1. Önce anında yerel listeye ekle (Kullanıcı gecikme hissetmesin)
       const tempId = Date.now();
       chatMessages.push({ ...msgRecord, id: tempId });
       saveLocalChatHistory(chatMessages);
+      syncTicketsFromMessages();
       renderChatMessages();
 
-      // 2. Supabase'e gönder
       await fetch(`${SUPABASE_URL}/support_messages`, {
         method: 'POST',
         headers: {
@@ -8760,7 +9014,7 @@ window.resetTestDataForRestoreDemo = function() {
       await fetchMessages(false);
     } catch (err) {
       console.warn("Mesaj gönderim uyarısı:", err);
-      showAppToast("Mesaj gönderildi (Yerel kaydedildi).", 'success');
+      showAppToast("Mesaj yerel kaydedildi.", 'info');
     } finally {
       if (sendBtn) {
         sendBtn.disabled = false;
@@ -8781,7 +9035,7 @@ window.resetTestDataForRestoreDemo = function() {
       modal.classList.remove('hidden');
       modal.style.display = 'flex';
     }
-    renderChatMessages();
+    showTicketsListView();
     fetchMessages(false);
   }
 
@@ -8796,11 +9050,20 @@ window.resetTestDataForRestoreDemo = function() {
 
   window.openSupportChatModal = openChatModal;
   window.closeSupportChatModal = closeChatModal;
+  window.openSupportTicketChat = openTicketChat;
 
   function setupEvents() {
     const drawerBtn = document.getElementById('drawer-btn-support-chat');
-    const closeBtn = document.getElementById('btn-close-support-chat');
     const modal = document.getElementById('modal-support-chat');
+    const closeBtn1 = document.getElementById('btn-close-support-modal');
+    const closeBtn2 = document.getElementById('btn-close-support-modal-create');
+    const closeBtn3 = document.getElementById('btn-close-support-modal-chat');
+    const openCreateBtn = document.getElementById('btn-open-create-ticket-view');
+    const backToTickets1 = document.getElementById('btn-back-to-tickets-from-create');
+    const backToTickets2 = document.getElementById('btn-back-to-tickets-from-chat');
+    const submitTicketBtn = document.getElementById('btn-submit-create-ticket');
+
+    // Chat Message Inputs
     const sendBtn = document.getElementById('btn-app-send-message');
     const textInp = document.getElementById('app-support-input-text');
     const attachBtn = document.getElementById('btn-app-attach-photo');
@@ -8811,14 +9074,66 @@ window.resetTestDataForRestoreDemo = function() {
     const previewDocName = document.getElementById('app-support-preview-doc-name');
     const removePreviewBtn = document.getElementById('btn-remove-app-preview');
 
+    // Create Ticket File Inputs
+    const newTicketFileBtn = document.getElementById('btn-trigger-ticket-file');
+    const newTicketFileInp = document.getElementById('app-new-ticket-file-input');
+    const newTicketPrevBox = document.getElementById('app-new-ticket-preview-box');
+    const newTicketPrevName = document.getElementById('app-new-ticket-preview-name');
+    const removeNewTicketFileBtn = document.getElementById('btn-remove-new-ticket-file');
+
     if (drawerBtn) drawerBtn.onclick = openChatModal;
-    if (closeBtn) closeBtn.onclick = closeChatModal;
+    if (closeBtn1) closeBtn1.onclick = closeChatModal;
+    if (closeBtn2) closeBtn2.onclick = closeChatModal;
+    if (closeBtn3) closeBtn3.onclick = closeChatModal;
+
     if (modal) {
       modal.onclick = (e) => {
         if (e.target === modal) closeChatModal();
       };
     }
 
+    if (openCreateBtn) openCreateBtn.onclick = showCreateTicketView;
+    if (backToTickets1) backToTickets1.onclick = showTicketsListView;
+    if (backToTickets2) backToTickets2.onclick = showTicketsListView;
+    if (submitTicketBtn) submitTicketBtn.onclick = submitNewTicket;
+
+    // Yeni Talep Dosya Seçici
+    if (newTicketFileBtn && newTicketFileInp) {
+      newTicketFileBtn.onclick = () => newTicketFileInp.click();
+      newTicketFileInp.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        if (file.type.startsWith('image/')) {
+          reader.onload = (evt) => {
+            compressImage(evt.target.result, 1000, 0.75, (compressed) => {
+              pendingNewTicketAttachment = { type: 'image', data: compressed, name: file.name };
+              if (newTicketPrevName) newTicketPrevName.textContent = `📷 ${file.name}`;
+              if (newTicketPrevBox) newTicketPrevBox.style.display = 'flex';
+            });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          reader.onload = (evt) => {
+            pendingNewTicketAttachment = { type: 'document', data: evt.target.result, name: file.name };
+            if (newTicketPrevName) newTicketPrevName.textContent = `📄 ${file.name}`;
+            if (newTicketPrevBox) newTicketPrevBox.style.display = 'flex';
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+    }
+
+    if (removeNewTicketFileBtn) {
+      removeNewTicketFileBtn.onclick = () => {
+        pendingNewTicketAttachment = null;
+        if (newTicketFileInp) newTicketFileInp.value = '';
+        if (newTicketPrevBox) newTicketPrevBox.style.display = 'none';
+      };
+    }
+
+    // Chat İçi Dosya Seçici
     if (attachBtn && fileInp) {
       attachBtn.onclick = () => fileInp.click();
       fileInp.onchange = (e) => {
@@ -8837,7 +9152,6 @@ window.resetTestDataForRestoreDemo = function() {
           };
           reader.readAsDataURL(file);
         } else {
-          // PDF, Word, Excel veya diğer dosya türleri
           reader.onload = (evt) => {
             pendingAttachment = { type: 'document', data: evt.target.result, name: file.name, size: file.size };
             if (previewImg) previewImg.style.display = 'none';
@@ -8879,19 +9193,16 @@ window.resetTestDataForRestoreDemo = function() {
   } else {
     setupEvents();
   }
-
-  window.openSupportChatModal = openChatModal;
 })();
 
 // ============================================================================
-// DONANIM CİHAZ KİLİDİ & KAÇAK KULLANIMI ENGELLEME MOTORU (MULTI-TENANT LİSANS)
+// DONANIM CİHAZ KİLİDİ & AÇILIŞTA GEÇİLEMEZ LİSANS MOTORU
 // ============================================================================
 (function initHardwareLicenseEngine() {
   const DEVICE_STORAGE_KEY = 'wholesaler_device_hardware_uuid';
   const LICENSE_STORAGE_KEY = 'wholesaler_active_license_key';
   const TENANT_STORAGE_KEY = 'wholesaler_active_tenant_id';
 
-  // Benzersiz Cihaz Donanım Kimliği Üret / Oku
   function getOrCreateDeviceId() {
     let deviceId = localStorage.getItem(DEVICE_STORAGE_KEY);
     if (!deviceId) {
@@ -8915,19 +9226,23 @@ window.resetTestDataForRestoreDemo = function() {
     const titleEl = document.getElementById('lic-gate-title');
     const descEl = document.getElementById('lic-gate-desc');
     const inputBox = document.getElementById('lic-gate-input-box');
+    const closeGateBtn = document.getElementById('btn-close-license-gate');
 
     if (!modalGate) return;
-
     if (devPrint) devPrint.textContent = deviceId;
 
-    const savedKey = localStorage.getItem(LICENSE_STORAGE_KEY);
+    const savedKey = (localStorage.getItem(LICENSE_STORAGE_KEY) || '').trim().toUpperCase();
 
+    // 1. Kural: Lisans anahtarı hiç girilmemişse -> KİLİT ASLA KALKMAZ
     if (!savedKey) {
-      // Lisans anahtarı girilmemiş -> Giriş Ekranını Aç
+      modalGate.style.display = 'flex';
       modalGate.classList.remove('hidden');
+      if (closeGateBtn) closeGateBtn.style.display = 'none'; // Kapatma butonu yok
       if (inputBox) inputBox.style.display = 'block';
       if (actBtn) actBtn.style.display = 'flex';
-      return;
+      if (titleEl) titleEl.textContent = 'Sistem Aktivasyonu & Lisans';
+      if (descEl) descEl.textContent = 'Bu yazılım kaçak kullanımı engellemek için lisans kilidiyle korunmaktadır. Lütfen yöneticinizden (Patron) aldığınız lisans anahtarını giriniz.';
+      return false;
     }
 
     try {
@@ -8936,7 +9251,7 @@ window.resetTestDataForRestoreDemo = function() {
         actBtn.querySelector('span').textContent = 'Lisans Doğrulanıyor...';
       }
 
-      // Supabase'den bu lisansı sorgula
+      // Supabase'den sorgula
       const res = await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants?license_key=eq.${encodeURIComponent(savedKey)}&select=*`, {
         headers: {
           'apikey': 'sb_publishable_lDBwN3BfaQ0FEJOPQp-VuA_4FqDRsL9',
@@ -8950,48 +9265,55 @@ window.resetTestDataForRestoreDemo = function() {
 
       const tenants = await res.json();
       if (!Array.isArray(tenants) || tenants.length === 0) {
-        // Lisans anahtarı silinmiş veya geçersiz
+        // Geçersiz / Silinmiş lisans
+        modalGate.style.display = 'flex';
         modalGate.classList.remove('hidden');
+        if (closeGateBtn) closeGateBtn.style.display = 'none';
         if (alertBox) {
           alertBox.style.display = 'block';
-          alertText.textContent = 'Kayıtlı lisans anahtarı geçersiz veya sistemden kaldırılmış!';
+          alertText.textContent = '❌ GEÇERSİZ LİSANS! Yönetici (Patron) panelinde bu lisans kodu kayıtlı değil.';
         }
         if (inputBox) inputBox.style.display = 'block';
         if (actBtn) actBtn.style.display = 'flex';
-        return;
+        localStorage.removeItem(TENANT_STORAGE_KEY);
+        return false;
       }
 
       const tenant = tenants[0];
 
-      // 1. KONTROL: Toptancı Askıya Alınmış / Kilitlenmiş mi?
+      // KONTROL 1: Toptancı Patron tarafından askıya alınmış mı?
       if (tenant.status === 'suspended') {
+        modalGate.style.display = 'flex';
         modalGate.classList.remove('hidden');
+        if (closeGateBtn) closeGateBtn.style.display = 'none';
         if (titleEl) titleEl.textContent = '🔒 Erişim Askıya Alındı';
         if (descEl) descEl.textContent = `"${tenant.company_name}" için sistem erişimi yönetici (Patron) tarafından geçici olarak kilitlenmiştir. Kaçak veya izinsiz kullanım engellenmiştir.`;
         if (alertBox) {
           alertBox.style.display = 'block';
-          alertText.textContent = 'UYARI: Sistem erişiminiz kilitlenmiştir. Lütfen yöneticiniz ile iletişime geçiniz.';
+          alertText.textContent = '⛔ SİSTEM KİLİTLİDİR. Lütfen yöneticiniz ile iletişime geçiniz.';
         }
         if (inputBox) inputBox.style.display = 'none';
         if (actBtn) actBtn.style.display = 'none';
-        return;
+        return false;
       }
 
-      // 2. KONTROL: Cihaz Donanım Kilidi (Başka telefona kopyalanmış mı?)
+      // KONTROL 2: Başka cihaza kilitli mi? (Kaçak Kopyalama Koruması)
       if (tenant.bound_device_id && tenant.bound_device_id !== deviceId) {
+        modalGate.style.display = 'flex';
         modalGate.classList.remove('hidden');
+        if (closeGateBtn) closeGateBtn.style.display = 'none';
         if (titleEl) titleEl.textContent = '⛔ Yetkisiz Cihaz (Kaçak Kopyalama)';
-        if (descEl) descEl.textContent = `Bu lisans anahtarı başka bir cihaza kilitlenmiştir! Sistemi başka telefona kopyalayamazsınız. Telefon değiştirdiyseniz yöneticinizden cihaz kilidini sıfırlamasını isteyiniz.`;
+        if (descEl) descEl.textContent = `Bu lisans anahtarı başka bir telefona mühürlenmiştir! Sistemi başka telefona kopyalayamazsınız. Telefon değiştirdiyseniz yöneticinizden cihaz kilidini sıfırlamasını isteyiniz.`;
         if (alertBox) {
           alertBox.style.display = 'block';
-          alertText.textContent = `HATA: Lisans farklı bir cihazla mühürlüdür! (${tenant.bound_device_id})`;
+          alertText.textContent = `HATA: Lisans farklı bir cihazla mühürlü! (${tenant.bound_device_id})`;
         }
         if (inputBox) inputBox.style.display = 'none';
         if (actBtn) actBtn.style.display = 'none';
-        return;
+        return false;
       }
 
-      // 3. İLK GİRİŞ İSE: Cihazı bu lisansa mühürle
+      // İLK GİRİŞ: Cihazı lisansa mühürle
       if (!tenant.bound_device_id) {
         await fetch(`https://hwcldjmdnfybaozgxszh.supabase.co/rest/v1/tenants?tenant_id=eq.${encodeURIComponent(tenant.tenant_id)}`, {
           method: 'PATCH',
@@ -9009,26 +9331,40 @@ window.resetTestDataForRestoreDemo = function() {
         });
       }
 
-      // Başarılı Lisans -> Sistemi Aç
+      // BAŞARILI: KİLİDİ KALDIR VE UYGULAMAYI AÇ
       localStorage.setItem(TENANT_STORAGE_KEY, tenant.tenant_id);
       window.CURRENT_TENANT_ID = tenant.tenant_id;
       modalGate.classList.add('hidden');
+      modalGate.style.display = 'none';
+      if (closeGateBtn) closeGateBtn.style.display = 'block';
 
-      // Toptancı İsmini Drawer'a yaz
+      // Toptancı İsmini Yaz
       const adminNameEl = document.querySelector('.admin-info .name');
       const adminRoleEl = document.querySelector('.admin-info .role');
       if (adminNameEl) adminNameEl.textContent = tenant.company_name;
       if (adminRoleEl) adminRoleEl.textContent = `Lisans: ${tenant.license_key} (${tenant.city || 'Yetkili'})`;
 
       if (isUserInitiated && typeof showAppToast === 'function') {
-        showAppToast(`Hoş Geldiniz! ${tenant.company_name} lisansı bu cihaza mühürlendi.`, 'success');
+        showAppToast(`✅ Lisans Doğrulandı: ${tenant.company_name} bu cihaza mühürlendi.`, 'success');
       }
 
+      return true;
+
     } catch (err) {
-      console.warn("Lisans kontrol uyarısı (Offline olabilir):", err);
-      // Eğer daha önce doğrulanmış bir anahtar varsa ve internet yoksa kilit koyma, offline devam etsin
-      if (savedKey) {
+      console.warn("Lisans doğrulama hatası:", err);
+      // Eğer daha önce doğrulanmış bir anahtar varsa offline geçici tolerans tanı, ama hiç doğrulanmamışsa ASLA AÇMA
+      if (savedKey && localStorage.getItem(TENANT_STORAGE_KEY)) {
         modalGate.classList.add('hidden');
+        modalGate.style.display = 'none';
+        return true;
+      } else {
+        modalGate.style.display = 'flex';
+        modalGate.classList.remove('hidden');
+        if (alertBox) {
+          alertBox.style.display = 'block';
+          alertText.textContent = 'Lisans sunucusuna bağlanılamadı. İlk aktivasyon için internet bağlantısı gereklidir.';
+        }
+        return false;
       }
     } finally {
       if (actBtn && isUserInitiated) {
@@ -9069,13 +9405,12 @@ window.resetTestDataForRestoreDemo = function() {
       };
     }
 
-    // İlk Kontrol
     checkLicenseStatus(false);
 
-    // Her 60 saniyede bir arka planda lisans ve kilit durumunu tazele (Patron askıya aldıysa anında kilitlenir)
+    // Her 30 saniyede bir durumu kontrol et (Patron kilitlediyse anında kitlenir)
     setInterval(() => {
       checkLicenseStatus(false);
-    }, 60000);
+    }, 30000);
   }
 
   if (document.readyState === 'loading') {
@@ -9090,12 +9425,17 @@ window.resetTestDataForRestoreDemo = function() {
     const actBtn = document.getElementById('btn-activate-license');
     const keyInp = document.getElementById('input-license-key');
     const devPrint = document.getElementById('display-device-fingerprint');
+    const closeGateBtn = document.getElementById('btn-close-license-gate');
+
     if (devPrint) devPrint.textContent = deviceId;
     if (modalGate) {
       modalGate.classList.remove('hidden');
       modalGate.style.display = 'flex';
       if (inputBox) inputBox.style.display = 'block';
       if (actBtn) actBtn.style.display = 'flex';
+      if (closeGateBtn && localStorage.getItem(TENANT_STORAGE_KEY)) {
+        closeGateBtn.style.display = 'block';
+      }
       const savedKey = localStorage.getItem(LICENSE_STORAGE_KEY);
       if (keyInp && savedKey) keyInp.value = savedKey;
     }
@@ -9103,7 +9443,8 @@ window.resetTestDataForRestoreDemo = function() {
 
   function closeLicenseModal() {
     const modalGate = document.getElementById('modal-license-gate');
-    if (modalGate) {
+    // Sadece lisanslı ise kapatılabilir
+    if (modalGate && localStorage.getItem(TENANT_STORAGE_KEY)) {
       modalGate.classList.add('hidden');
       modalGate.style.display = 'none';
     }

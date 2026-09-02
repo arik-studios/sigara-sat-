@@ -854,9 +854,10 @@ function renderBackupsPage() {
 }
 
 // ============================================================================
-// 9. CANLI DESTEK, BELGE PAYLAŞIMI & OTOMATİK BULUT TEMİZLEME MOTORU
+// 9. CANLI DESTEK, BİLET/TALEP YÖNETİMİ & OTOMATİK BULUT TEMİZLEME MOTORU
 // ============================================================================
 const ADMIN_LOCAL_CHAT_KEY = 'admin_local_support_chat_history';
+let adminActiveTicketId = null;
 
 function getAdminChatArchive() {
   try {
@@ -875,11 +876,10 @@ function saveAdminChatArchive(msgs) {
 
 async function loadSupportMessages(shouldScroll = true) {
   try {
-    const remoteRes = await db.get('support_messages', 'order=created_at.asc&limit=200');
+    const remoteRes = await db.get('support_messages', 'order=created_at.asc&limit=300');
     let localArchive = getAdminChatArchive();
 
     if (Array.isArray(remoteRes) && remoteRes.length > 0) {
-      // 1. Yeni gelen mesajları yerel arşive ekle (Deduplicate)
       const map = new Map();
       localArchive.forEach(m => { if (m.id) map.set(m.id, m); });
 
@@ -900,15 +900,14 @@ async function loadSupportMessages(shouldScroll = true) {
       AppState.messages = localArchive;
 
       if (newWholesalerMsgCount > 0) {
-        showToast(`🔔 Toptancı'dan ${newWholesalerMsgCount} yeni mesaj/belge bilgisayarınıza kaydedildi!`);
+        showToast(`🔔 Toptancı'dan ${newWholesalerMsgCount} yeni mesaj/talep alındı!`);
       }
 
-      // 2. OTOMATİK SUPABASE TEMİZLİĞİ:
-      // Bilgisayarınıza indirilen mesajları Supabase'den siliyoruz ki bulutta gereksiz yer kaplamasın!
+      // OTOMATİK BULUT TEMİZLİĞİ: İndirilen kayıtları Supabase'den sil
       if (idsToPrune.length > 0) {
         try {
           await db.delete('support_messages', `id=in.(${idsToPrune.join(',')})`);
-          console.log(`[Bulut Temizliği] ${idsToPrune.length} adet mesaj bilgisayarınıza arşivlendi ve Supabase'den temizlendi.`);
+          console.log(`[Bulut Temizliği] ${idsToPrune.length} mesaj bilgisayarınıza arşivlendi ve Supabase'den temizlendi.`);
         } catch (delErr) {
           console.warn("Supabase temizleme uyarısı:", delErr);
         }
@@ -917,34 +916,143 @@ async function loadSupportMessages(shouldScroll = true) {
       AppState.messages = localArchive;
     }
 
+    renderAdminTicketsList();
     renderSupportMessages(shouldScroll);
     updateBadges();
   } catch (err) {
     console.warn("Mesajlar yüklenemedi:", err.message);
     AppState.messages = getAdminChatArchive();
+    renderAdminTicketsList();
     renderSupportMessages(shouldScroll);
   }
 }
 
-function renderSupportMessages(shouldScroll = true) {
-  const box = document.getElementById('admin-chat-box');
+function getDerivedAdminTickets() {
+  const messages = getTenantFilteredList(AppState.messages);
+  const ticketMap = new Map();
+
+  messages.forEach(m => {
+    const tId = m.ticket_id || 'DST-1000';
+    const subj = m.ticket_subject || 'Genel Destek & Saha İletişim';
+    const tTenant = m.tenant_id || 'default_tenant';
+
+    if (!ticketMap.has(tId)) {
+      ticketMap.set(tId, {
+        ticket_id: tId,
+        subject: subj,
+        tenant_id: tTenant,
+        created_at: m.created_at || new Date().toISOString(),
+        last_message: m.message_text || 'Ek dosya gönderildi',
+        last_time: m.created_at || new Date().toISOString(),
+        has_unread: m.sender_role === 'toptanci' && !m.is_read
+      });
+    } else {
+      const existing = ticketMap.get(tId);
+      existing.last_message = m.message_text || 'Ek dosya gönderildi';
+      existing.last_time = m.created_at || existing.last_time;
+      if (m.sender_role === 'toptanci' && !m.is_read) existing.has_unread = true;
+    }
+  });
+
+  const list = Array.from(ticketMap.values());
+  list.sort((a, b) => new Date(b.last_time || 0) - new Date(a.last_time || 0));
+  return list;
+}
+
+function renderAdminTicketsList() {
+  const box = document.getElementById('admin-tickets-list-box');
+  const countBadge = document.getElementById('admin-tickets-count-badge');
   if (!box) return;
 
-  const filteredMessages = getTenantFilteredList(AppState.messages);
+  const tickets = getDerivedAdminTickets();
+  if (countBadge) countBadge.textContent = `${tickets.length} Talep`;
 
-  if (filteredMessages.length === 0) {
+  if (tickets.length === 0) {
     box.innerHTML = `
-      <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
-        <div style="font-size:2rem; margin-bottom:8px;">💬</div>
-        Henüz mesajlaşma geçmişi bulunmuyor.<br>
-        Aşağıdaki kutudan toptancınıza mesaj, fotoğraf veya PDF/Word belgeleri gönderebilirsiniz.<br>
-        <span style="font-size:0.75rem; color:#10b981; margin-top:6px; display:inline-block;">* Bilgisayarınıza yüklenen mesajlar otomatik arşivlenip Supabase'den silinir.</span>
+      <div style="text-align:center; color:#64748b; font-size:0.8rem; padding:20px 10px;">
+        Henüz açılmış bir destek talebi bulunmuyor.
       </div>
     `;
     return;
   }
 
-  box.innerHTML = filteredMessages.map(m => {
+  // İlk yüklemede aktif bilet seçili değilse ilkini seç
+  if (!adminActiveTicketId && tickets.length > 0) {
+    adminActiveTicketId = tickets[0].ticket_id;
+  }
+
+  box.innerHTML = tickets.map(t => {
+    const isSelected = t.ticket_id === adminActiveTicketId;
+    const borderStyle = isSelected ? 'border:1.5px solid #6366f1; background:#0f172a;' : 'border:1px solid rgba(255,255,255,0.06); background:#090e1a;';
+    const tenantObj = AppState.tenants.find(x => x.tenant_id === t.tenant_id);
+    const tenantName = tenantObj ? tenantObj.company_name : (t.tenant_id || 'Toptancı');
+    const dateStr = t.last_time ? new Date(t.last_time).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+    return `
+      <div style="${borderStyle} border-radius:10px; padding:10px 12px; cursor:pointer; transition:all 0.2s;" onclick="selectAdminTicket('${t.ticket_id}')">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-size:0.68rem; font-family:monospace; background:rgba(99,102,241,0.2); color:#a5b4fc; padding:2px 5px; border-radius:4px; font-weight:800;">#${t.ticket_id}</span>
+          <span style="font-size:0.65rem; color:#64748b;">${dateStr}</span>
+        </div>
+        <div style="font-size:0.82rem; font-weight:800; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          ${escapeHtml(t.subject)}
+        </div>
+        <div style="font-size:0.72rem; color:#38bdf8; margin-top:2px;">
+          🏢 ${escapeHtml(tenantName)}
+        </div>
+        <div style="font-size:0.72rem; color:#94a3b8; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+          ${escapeHtml(t.last_message || '')}
+        </div>
+        <div style="margin-top:6px; display:flex; justify-content:flex-end;">
+          <button type="button" class="btn-tbl btn-tbl-primary" style="padding:3px 10px; font-size:0.7rem;" onclick="selectAdminTicket('${t.ticket_id}'); event.stopPropagation();">
+            💬 Mesajları Gör
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.selectAdminTicket = function(ticketId) {
+  adminActiveTicketId = ticketId;
+  renderAdminTicketsList();
+  renderSupportMessages(true);
+};
+
+function renderSupportMessages(shouldScroll = true) {
+  const box = document.getElementById('admin-chat-box');
+  const subjEl = document.getElementById('admin-chat-active-subject');
+  const codeEl = document.getElementById('admin-chat-active-ticket-code');
+  const tenantEl = document.getElementById('admin-chat-active-tenant-name');
+  if (!box) return;
+
+  const tickets = getDerivedAdminTickets();
+  const currentTicket = tickets.find(x => x.ticket_id === adminActiveTicketId) || (tickets.length > 0 ? tickets[0] : null);
+
+  if (currentTicket) {
+    if (subjEl) subjEl.textContent = currentTicket.subject;
+    if (codeEl) codeEl.textContent = `#${currentTicket.ticket_id}`;
+    if (tenantEl) {
+      const tObj = AppState.tenants.find(x => x.tenant_id === currentTicket.tenant_id);
+      tenantEl.textContent = tObj ? tObj.company_name : (currentTicket.tenant_id || 'Toptancı');
+    }
+  }
+
+  const allFiltered = getTenantFilteredList(AppState.messages);
+  const ticketMessages = allFiltered.filter(m => !adminActiveTicketId || m.ticket_id === adminActiveTicketId);
+
+  if (ticketMessages.length === 0) {
+    box.innerHTML = `
+      <div style="text-align:center; color:#64748b; font-size:0.85rem; margin:auto; padding:20px;">
+        <div style="font-size:2rem; margin-bottom:8px;">💬</div>
+        Bu talep için henüz bir mesaj akışı bulunmuyor.<br>
+        Aşağıdaki kutudan toptancınıza yanıt yazabilir, görsel veya PDF / Word / TXT ekleyebilirsiniz.
+      </div>
+    `;
+    return;
+  }
+
+  box.innerHTML = ticketMessages.map(m => {
     const isAdmin = m.sender_role === 'admin';
     const alignStyle = isAdmin ? 'margin-left:auto; text-align:right;' : 'margin-right:auto; text-align:left;';
     const bubbleBg = isAdmin
@@ -965,7 +1073,6 @@ function renderSupportMessages(shouldScroll = true) {
           </div>
         `;
       } else {
-        // PDF, Word veya diğer belgeler
         const fileName = m.attachment_name || 'belge_indir';
         attachmentHtml = `
           <div style="margin-top:8px; margin-bottom:4px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.15); border-radius:8px; padding:8px 12px; display:flex; align-items:center; gap:10px; text-align:left;">
@@ -1013,7 +1120,7 @@ function setupSupportChat() {
   const textInp = document.getElementById('admin-chat-input-text');
   const refreshMsgBtn = document.getElementById('btn-refresh-messages');
 
-  let pendingAttachment = null; // { type: 'image' | 'document', data: base64, name: string }
+  let pendingAttachment = null;
 
   if (attachBtn && fileInp) {
     attachBtn.onclick = () => fileInp.click();
@@ -1033,7 +1140,6 @@ function setupSupportChat() {
         };
         reader.readAsDataURL(file);
       } else {
-        // PDF, Word, Excel veya diğer belgeler
         reader.onload = (loadEvt) => {
           pendingAttachment = { type: 'document', data: loadEvt.target.result, name: file.name };
           if (previewImg) previewImg.style.display = 'none';
@@ -1069,11 +1175,15 @@ function setupSupportChat() {
         sendBtn.textContent = "Gönderiliyor...";
       }
 
-      const tenantId = AppState.selectedTenantId && AppState.selectedTenantId !== 'ALL'
-        ? AppState.selectedTenantId
-        : 'default_tenant';
+      const tickets = getDerivedAdminTickets();
+      const currentTicket = tickets.find(x => x.ticket_id === adminActiveTicketId);
+      const ticketId = adminActiveTicketId || (currentTicket ? currentTicket.ticket_id : 'DST-1000');
+      const ticketSubject = currentTicket ? currentTicket.subject : 'Genel Destek';
+      const tenantId = currentTicket ? currentTicket.tenant_id : (AppState.selectedTenantId !== 'ALL' ? AppState.selectedTenantId : 'default_tenant');
 
       const msgRecord = {
+        ticket_id: ticketId,
+        ticket_subject: ticketSubject,
         tenant_id: tenantId,
         sender_role: 'admin',
         sender_name: 'Patron',
@@ -1084,26 +1194,24 @@ function setupSupportChat() {
         created_at: new Date().toISOString()
       };
 
-      // 1. Önce Admin'in kendi yerel arşivine ekle
       const localArchive = getAdminChatArchive();
       const localMsg = { ...msgRecord, id: Date.now() };
       localArchive.push(localMsg);
       saveAdminChatArchive(localArchive);
       AppState.messages = localArchive;
+      renderAdminTicketsList();
       renderSupportMessages(true);
 
-      // 2. Supabase'e gönder (Toptancı saha uygulaması oradan çekecek)
       await db.post('support_messages', msgRecord);
 
-      // Temizle
       if (textInp) textInp.value = '';
       pendingAttachment = null;
       if (fileInp) fileInp.value = '';
       if (previewStrip) previewStrip.style.display = 'none';
 
-      showToast("Mesaj ve dosya toptancıya iletildi!");
+      showToast("Yanıt toptancıya iletildi!");
     } catch (err) {
-      alert(`Mesaj gönderme hatası: ${err.message}\n(Supabase'de 'support_messages' tablosunu oluşturduğunuzdan emin olun)`);
+      alert(`Mesaj gönderme hatası: ${err.message}`);
     } finally {
       if (sendBtn) {
         sendBtn.disabled = false;
