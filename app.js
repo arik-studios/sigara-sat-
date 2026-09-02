@@ -300,6 +300,16 @@ function initDatabaseAndStorage() {
     localStorage.setItem(STORAGE_KEY_CIGS, JSON.stringify(CIGARETTES_DB));
   }
 
+  // Otomatik Temizleme (Test için noktalar, satışlar ve stoklar sıfırlanır; katalog, fabrika alımları ve tedarikçi borçları korunur)
+  if (localStorage.getItem('toptan_clean_reset_v12') !== 'done') {
+    localStorage.setItem(STORAGE_KEY_DEALERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_DAILY_SALES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_INVENTORY, JSON.stringify({}));
+    localStorage.removeItem('toptan_inventory_stock_v1');
+    localStorage.setItem(STORAGE_KEY_DAILY_HISTORY, JSON.stringify({}));
+    localStorage.setItem('toptan_clean_reset_v12', 'done');
+  }
+
   const savedDealers = localStorage.getItem(STORAGE_KEY_DEALERS);
   if (savedDealers) {
     try {
@@ -316,13 +326,13 @@ function initDatabaseAndStorage() {
     try {
       dailySalesData = JSON.parse(savedSales);
     } catch (e) {
-      dailySalesData = generateCleanMonthTimeline();
+      dailySalesData = [];
     }
   } else {
-    dailySalesData = generateCleanMonthTimeline();
+    dailySalesData = [];
   }
 
-  // Depo Stok Veritabanı (Demo veriler tamamen silindi, temiz başlangıç)
+  // Depo Stok Veritabanı
   const savedStock = localStorage.getItem(STORAGE_KEY_INVENTORY);
   if (savedStock) {
     try {
@@ -332,10 +342,9 @@ function initDatabaseAndStorage() {
     }
   } else {
     inventoryStock = {};
-    saveInventoryToStorage();
   }
 
-  // Bayi Toptan Alım Geçmişi (Demo veriler tamamen silindi, temiz başlangıç)
+  // Fabrika Toptan Alım Geçmişi (KORUNDU)
   const savedPurchases = localStorage.getItem(STORAGE_KEY_PURCHASE_HISTORY);
   if (savedPurchases) {
     try {
@@ -345,36 +354,19 @@ function initDatabaseAndStorage() {
     }
   } else {
     purchaseHistory = [];
-    savePurchaseHistoryToStorage();
   }
 
-  const demoHistory = {
-    '2026-08-21': { sales: 124500, profit: 28400, count: 5, dateStr: '21 Ağustos 2026' },
-    '2026-08-22': { sales: 148000, profit: 34200, count: 7, dateStr: '22 Ağustos 2026' },
-    '2026-08-23': { sales: 98000,  profit: 21500, count: 4, dateStr: '23 Ağustos 2026' },
-    '2026-08-24': { sales: 165000, profit: 38000, count: 8, dateStr: '24 Ağustos 2026' },
-    '2026-08-25': { sales: 182000, profit: 41500, count: 9, dateStr: '25 Ağustos 2026' },
-    '2026-08-26': { sales: 139000, profit: 31000, count: 6, dateStr: '26 Ağustos 2026' },
-    '2026-08-27': { sales: 195000, profit: 46200, count: 10, dateStr: '27 Ağustos 2026' },
-    '2026-08-28': { sales: 154000, profit: 35800, count: 7, dateStr: '28 Ağustos 2026' },
-    '2026-08-29': { sales: 173000, profit: 39400, count: 8, dateStr: '29 Ağustos 2026' },
-    '2026-08-30': { sales: 210000, profit: 49000, count: 11, dateStr: '30 Ağustos 2026' },
-    '2026-08-31': { sales: 188000, profit: 43200, count: 9, dateStr: '31 Ağustos 2026' },
-    '2026-09-01': { sales: 162000, profit: 37500, count: 8, dateStr: '01 Eylül 2026' }
-  };
-
+  // Gün Sonu Arşivi
   const savedHistory = localStorage.getItem(STORAGE_KEY_DAILY_HISTORY);
   if (savedHistory) {
     try {
-      const parsed = JSON.parse(savedHistory);
-      dailyHistoryStore = { ...demoHistory, ...parsed };
+      dailyHistoryStore = JSON.parse(savedHistory);
     } catch (e) {
-      dailyHistoryStore = demoHistory;
+      dailyHistoryStore = {};
     }
   } else {
-    dailyHistoryStore = demoHistory;
+    dailyHistoryStore = {};
   }
-  localStorage.setItem(STORAGE_KEY_DAILY_HISTORY, JSON.stringify(dailyHistoryStore));
 
   checkDailyCutoff();
 }
